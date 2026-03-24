@@ -2,6 +2,7 @@ package com.hospital.billing.controller;
 
 import com.hospital.billing.dto.BillHistoryResponse;
 import com.hospital.billing.service.BillingHistoryQueryService;
+import com.hospital.common.response.ApiResponse;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -21,7 +22,12 @@ public class BillingHistoryController {
      * 청구 이력 조회
      */
     @GetMapping("/{billId}/history")
-    public List<BillHistoryResponse> getBillHistory(@PathVariable Long billId) {
-        return billingHistoryQueryService.getBillHistory(billId);
+    public ApiResponse<List<BillHistoryResponse>> getBillHistory(
+            @PathVariable Long billId
+    ) {
+        List<BillHistoryResponse> result =
+                billingHistoryQueryService.getBillHistory(billId);
+
+        return ApiResponse.success(result, "청구 이력 조회 성공");
     }
 }

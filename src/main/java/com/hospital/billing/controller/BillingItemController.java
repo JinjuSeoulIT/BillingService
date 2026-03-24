@@ -2,6 +2,7 @@ package com.hospital.billing.controller;
 
 import com.hospital.billing.dto.BillItemResponse;
 import com.hospital.billing.service.BillingItemQueryService;
+import com.hospital.common.response.ApiResponse;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -21,9 +22,12 @@ public class BillingItemController {
      * 항목별 청구금액 상세 조회
      */
     @GetMapping("/{billId}/items")
-    public List<BillItemResponse> getBillItemDetails(
+    public ApiResponse<List<BillItemResponse>> getBillItemDetails(
             @PathVariable Long billId
     ) {
-        return billingItemQueryService.getBillItemDetails(billId);
+        List<BillItemResponse> result =
+                billingItemQueryService.getBillItemDetails(billId);
+
+        return ApiResponse.success(result, "항목별 청구금액 상세 조회 성공");
     }
 }

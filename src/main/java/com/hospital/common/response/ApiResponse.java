@@ -4,19 +4,19 @@ public class ApiResponse<T> {
 
     private boolean success;
     private String message;
-    private T data;
+    private T result;   // data → result 변경
 
     public ApiResponse() {
     }
 
-    public ApiResponse(boolean success, String message, T data) {
+    public ApiResponse(boolean success, String message, T result) {
         this.success = success;
         this.message = message;
-        this.data = data;
+        this.result = result;
     }
 
-    public static <T> ApiResponse<T> success(T data, String message) {
-        return new ApiResponse<>(true, message, data);
+    public static <T> ApiResponse<T> success(T result, String message) {
+        return new ApiResponse<>(true, message, result);
     }
 
     public static <T> ApiResponse<T> fail(String message) {
@@ -31,7 +31,7 @@ public class ApiResponse<T> {
         return message;
     }
 
-    public T getData() {
-        return data;
+    public T getResult() {   // getData → getResult 변경
+        return result;
     }
 }

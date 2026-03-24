@@ -2,6 +2,7 @@ package com.hospital.billing.controller;
 
 import com.hospital.billing.dto.CalculatedBillResponse;
 import com.hospital.billing.service.BillingCalculationQueryService;
+import com.hospital.common.response.ApiResponse;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -19,7 +20,12 @@ public class BillingCalculationController {
      * 자동 계산된 진료비 조회
      */
     @GetMapping("/{billId}/calculated")
-    public CalculatedBillResponse getCalculatedBill(@PathVariable Long billId) {
-        return billingCalculationQueryService.getCalculatedBill(billId);
+    public ApiResponse<CalculatedBillResponse> getCalculatedBill(
+            @PathVariable Long billId
+    ) {
+        CalculatedBillResponse result =
+                billingCalculationQueryService.getCalculatedBill(billId);
+
+        return ApiResponse.success(result, "자동 계산된 진료비 조회 성공");
     }
 }

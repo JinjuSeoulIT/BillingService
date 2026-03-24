@@ -1,17 +1,21 @@
 ﻿server:
   port: 8081
-
 spring:
   datasource:
-    url: jdbc:mysql://localhost:3306/hospital
-    username: root
+    driver-class-name: oracle.jdbc.OracleDriver
+    url: jdbc:oracle:thin:@192.168.1.67:1521:XE
+    username: HOSPITAL
     password: 1111
-    driver-class-name: com.mysql.cj.jdbc.Driver
 
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: none
     show-sql: true
     properties:
       hibernate:
         format_sql: true
+        physical_naming_strategy: org.hibernate.boot.model.naming.PhysicalNamingStrategyStandardImpl
+
+toss:
+    secret-key: ${TOSS_SECRET_KEY}
+    base-url: https://api.tosspayments.com

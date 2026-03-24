@@ -1,60 +1,70 @@
 package com.hospital.billing.entity;
 
 import jakarta.persistence.*;
-import java.time.LocalDateTime;
+import java.sql.Timestamp;
 
 @Entity
-@Table(name = "payments")
+@Table(name = "PAYMENT")
 public class Payment {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "payment_seq_gen")
+    @SequenceGenerator(
+            name = "payment_seq_gen",
+            sequenceName = "PAYMENT_SEQ",
+            allocationSize = 1
+    )
+    @Column(name = "PAYMENT_ID")
     private Long id;
 
-    // 환자 ID (나중에 Patient와 연결)
-    @Column(nullable = false)
-    private Long patientId;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "BILL_ID", nullable = false)
+    private Bill bill;
 
-    // 결제 금액
-    @Column(nullable = false)
-    private Integer amount;
+    @Column(name = "PAYMENT_AMOUNT", nullable = false)
+    private Integer paymentAmount;
 
-    // 결제 상태 (예: PAID, CANCELLED)
-    @Column(nullable = false)
-    private String status;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "PAYMENT_STATUS", nullable = false)
+    private PaymentStatus status;
 
-    // 생성 시각
-    @Column(nullable = false)
-    private LocalDateTime createdAt;
+    // [수정] String → PaymentMethod enum
+    @Enumerated(EnumType.STRING)
+    @Column(name = "PAYMENT_METHOD", nullable = false)
+    private PaymentMethod method;
 
-    protected Payment() {
-        // JPA 기본 생성자
+    @Column(name = "PAID_AT")
+    private Timestamp paidAt;
+
+    protected Payment() {}
+
+    // [수정] 결제수단 받는 생성자
+    public Payment(Bill bill, Integer paymentAmount, PaymentMethod method) {
+        this.bill = bill;
+        this.paymentAmount = paymentAmount;
+        this.status = PaymentStatus.COMPLETED;
+        this.method = method;
+        this.paidAt = new Timestamp(System.currentTimeMillis());
     }
 
-    public Payment(Long patientId, Integer amount, String status) {
-        this.patientId = patientId;
-        this.amount = amount;
+    public void cancel() {
+        if (this.status == PaymentStatus.CANCELED) {
+            throw new IllegalStateException("이미 취소된 결제입니다.");
+        }
+        this.status = PaymentStatus.CANCELED;
+    }
+
+    public void setStatus(PaymentStatus status) {
         this.status = status;
-        this.createdAt = LocalDateTime.now();
     }
 
-    public Long getId() {
-        return id;
-    }
+    public Long getId() { return id; }
+    public Bill getBill() { return bill; }
+    public Integer getPaymentAmount() { return paymentAmount; }
+    public PaymentStatus getStatus() { return status; }
 
-    public Long getPatientId() {
-        return patientId;
-    }
+    // [수정] 반환 타입 String → PaymentMethod
+    public PaymentMethod getMethod() { return method; }
 
-    public Integer getAmount() {
-        return amount;
-    }
-
-    public String getStatus() {
-        return status;
-    }
-
-    public LocalDateTime getCreatedAt() {
-        return createdAt;
-    }
+    public Timestamp getPaidAt() { return paidAt; }
 }

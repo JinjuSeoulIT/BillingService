@@ -1,54 +1,63 @@
 package com.hospital.billing.entity;
 
 import jakarta.persistence.*;
-import java.time.LocalDateTime;
+import java.sql.Timestamp;
 
 @Entity
-@Table(name = "bills")
+@Table(name = "BILL")
 public class Bill {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "BILL_ID")
     private Long id;
 
     // 환자 ID
-    @Column(nullable = false)
+    @Column(name = "PATIENT_ID", nullable = false)
     private Long patientId;
 
     // 진료(내원/접수) 일시
-    @Column(nullable = false)
-    private LocalDateTime treatmentDate;
+    @Column(name = "TREATMENT_DATE", nullable = false)
+    private Timestamp treatmentDate;
 
     // 총 진료비
-    @Column(nullable = false)
+    @Column(name = "TOTAL_AMOUNT", nullable = false)
     private Integer totalAmount;
 
-    // 생성 시각
-    @Column(nullable = false)
-    private LocalDateTime createdAt;
+    //  누적 결제 금액
+    @Column(name = "PAID_AMOUNT", nullable = false)
+    private Integer paidAmount;
 
-    // 청구 상태 (추가)
+    //  남은 금액
+    @Column(name = "REMAINING_AMOUNT", nullable = false)
+    private Integer remainingAmount;
+
+    // 생성 시각
+    @Column(name = "CREATED_AT", nullable = false)
+    private Timestamp createdAt;
+
+    // 청구 상태
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @Column(name = "STATUS", nullable = false)
     private BillingStatus status;
 
-    // JPA 기본 생성자
-    protected Bill() {
+    public Bill() {
     }
 
-    // 생성자 (기존 + status 기본값 READY)
     public Bill(Long patientId,
-                LocalDateTime treatmentDate,
+                Timestamp treatmentDate,
                 Integer totalAmount,
-                LocalDateTime createdAt) {
+                Timestamp createdAt) {
         this.patientId = patientId;
         this.treatmentDate = treatmentDate;
         this.totalAmount = totalAmount;
         this.createdAt = createdAt;
         this.status = BillingStatus.READY;
+        this.paidAmount = 0;
+        this.remainingAmount = totalAmount;
     }
 
-    // ===== getter / setter =====
+    //getter  setter
+
     public Long getId() {
         return id;
     }
@@ -61,11 +70,11 @@ public class Bill {
         this.patientId = patientId;
     }
 
-    public LocalDateTime getTreatmentDate() {
+    public Timestamp getTreatmentDate() {
         return treatmentDate;
     }
 
-    public void setTreatmentDate(LocalDateTime treatmentDate) {
+    public void setTreatmentDate(Timestamp treatmentDate) {
         this.treatmentDate = treatmentDate;
     }
 
@@ -77,11 +86,28 @@ public class Bill {
         this.totalAmount = totalAmount;
     }
 
-    public LocalDateTime getCreatedAt() {
+    //  getter/setter
+    public Integer getPaidAmount() {
+        return paidAmount;
+    }
+
+    public void setPaidAmount(Integer paidAmount) {
+        this.paidAmount = paidAmount;
+    }
+
+    public Integer getRemainingAmount() {
+        return remainingAmount;
+    }
+
+    public void setRemainingAmount(Integer remainingAmount) {
+        this.remainingAmount = remainingAmount;
+    }
+
+    public Timestamp getCreatedAt() {
         return createdAt;
     }
 
-    public void setCreatedAt(LocalDateTime createdAt) {
+    public void setCreatedAt(Timestamp createdAt) {
         this.createdAt = createdAt;
     }
 

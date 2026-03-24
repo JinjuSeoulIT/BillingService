@@ -1,30 +1,31 @@
 package com.hospital.billing.dto;
 
 import com.hospital.billing.entity.Bill;
-import com.hospital.billing.entity.BillingStatus;
 
 import java.time.LocalDateTime;
 
-public class BillSummaryResponse {
+public class BillDetailResponse {
 
     private Long billId;
     private Long patientId;
     private LocalDateTime treatmentDate;
+
     private Integer totalAmount;
-    private BillingStatus status;
-    private Integer remainingAmount;
+    private Integer paidAmount;        // 추가
+    private Integer remainingAmount;   // 추가
 
-    public BillSummaryResponse() {
-    }
+    private String status;
 
-    // ⭐ Bill 엔티티 기반 생성자 추가
-    public BillSummaryResponse(Bill bill) {
+    public BillDetailResponse(Bill bill) {
         this.billId = bill.getId();
         this.patientId = bill.getPatientId();
         this.treatmentDate = bill.getTreatmentDate().toLocalDateTime();
+
         this.totalAmount = bill.getTotalAmount();
-        this.status = bill.getStatus();
+        this.paidAmount = bill.getPaidAmount();
         this.remainingAmount = bill.getRemainingAmount();
+
+        this.status = bill.getStatus().name();
     }
 
     public Long getBillId() {
@@ -43,11 +44,15 @@ public class BillSummaryResponse {
         return totalAmount;
     }
 
-    public BillingStatus getStatus() {
-        return status;
+    public Integer getPaidAmount() {
+        return paidAmount;
     }
 
     public Integer getRemainingAmount() {
         return remainingAmount;
+    }
+
+    public String getStatus() {
+        return status;
     }
 }
