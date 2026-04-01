@@ -8,12 +8,26 @@ import java.sql.Timestamp;
 public class Bill {
 
     @Id
+    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "bill_seq_generator")
+    @SequenceGenerator(
+            name = "bill_seq_generator",
+            sequenceName = "BILL_INTG_SEQ",
+            allocationSize = 1
+    )
     @Column(name = "BILL_ID")
     private Long id;
 
     // 환자 ID
     @Column(name = "PATIENT_ID", nullable = false)
     private Long patientId;
+
+    // 진료 방문 ID (진료와 연결)
+    @Column(name = "VISIT_ID")
+    private Long visitId;
+
+    // 이벤트 ID (중복 처리 방지)
+    @Column(name = "SOURCE_EVENT_ID", unique = true)
+    private String sourceEventId;
 
     // 진료(내원/접수) 일시
     @Column(name = "TREATMENT_DATE", nullable = false)
@@ -23,11 +37,11 @@ public class Bill {
     @Column(name = "TOTAL_AMOUNT", nullable = false)
     private Integer totalAmount;
 
-    //  누적 결제 금액
+    // 누적 결제 금액
     @Column(name = "PAID_AMOUNT", nullable = false)
     private Integer paidAmount;
 
-    //  남은 금액
+    // 남은 금액
     @Column(name = "REMAINING_AMOUNT", nullable = false)
     private Integer remainingAmount;
 
@@ -56,7 +70,7 @@ public class Bill {
         this.remainingAmount = totalAmount;
     }
 
-    //getter  setter
+    // getter setter
 
     public Long getId() {
         return id;
@@ -68,6 +82,22 @@ public class Bill {
 
     public void setPatientId(Long patientId) {
         this.patientId = patientId;
+    }
+
+    public Long getVisitId() {
+        return visitId;
+    }
+
+    public void setVisitId(Long visitId) {
+        this.visitId = visitId;
+    }
+
+    public String getSourceEventId() {
+        return sourceEventId;
+    }
+
+    public void setSourceEventId(String sourceEventId) {
+        this.sourceEventId = sourceEventId;
     }
 
     public Timestamp getTreatmentDate() {
@@ -86,7 +116,6 @@ public class Bill {
         this.totalAmount = totalAmount;
     }
 
-    //  getter/setter
     public Integer getPaidAmount() {
         return paidAmount;
     }

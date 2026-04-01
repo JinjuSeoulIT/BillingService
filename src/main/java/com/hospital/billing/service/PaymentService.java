@@ -67,12 +67,13 @@ public class PaymentService {
 
         Payment saved = paymentRepository.save(payment);
 
+        // null 안전 변환 메서드 사용
         return new PaymentResponse(
                 saved.getId(),
                 saved.getBill().getId(),
                 saved.getPaymentAmount(),
-                saved.getStatus().name(),
-                saved.getMethod().name(),
+                resolvePaymentStatus(saved),
+                resolvePaymentMethod(saved),
                 saved.getPaidAt()
         );
     }
@@ -97,7 +98,6 @@ public class PaymentService {
         }
 
         Bill bill = payment.getBill();
-
 
         // 현재 구조에서는 환불이 어느 원결제에 연결되는지 추적하지 못하므로
         // 같은 청구에 REFUNDED 이력이 하나라도 있으면 전체 취소를 막는다.
@@ -157,12 +157,13 @@ public class PaymentService {
 
         Payment saved = paymentRepository.save(refund);
 
+        // null 안전 변환 메서드 사용
         return new PaymentResponse(
                 saved.getId(),
                 saved.getBill().getId(),
                 saved.getPaymentAmount(),
-                saved.getStatus().name(),
-                saved.getMethod().name(),
+                resolvePaymentStatus(saved),
+                resolvePaymentMethod(saved),
                 saved.getPaidAt()
         );
     }
@@ -172,14 +173,7 @@ public class PaymentService {
      */
     public List<PaymentResponse> getPaymentsAsResponse() {
         return paymentRepository.findAll().stream()
-                .map(p -> new PaymentResponse(
-                        p.getId(),
-                        p.getBill().getId(),
-                        p.getPaymentAmount(),
-                        p.getStatus().name(),
-                        p.getMethod().name(),
-                        p.getPaidAt()
-                ))
+                .map(this::toPaymentResponse) // [수정] 공통 변환 메서드 사용
                 .toList();
     }
 
@@ -191,14 +185,36 @@ public class PaymentService {
         return paymentRepository
                 .findByBill_IdOrderByPaidAtDesc(billId)
                 .stream()
-                .map(p -> new PaymentResponse(
-                        p.getId(),
-                        p.getBill().getId(),
-                        p.getPaymentAmount(),
-                        p.getStatus().name(),
-                        p.getMethod().name(),
-                        p.getPaidAt()
-                ))
+                .map(this::toPaymentResponse) // [수정] 공통 변환 메서드 사용
                 .toList();
+    }
+
+    // [추가]
+    // Payment -> PaymentResponse 공통 변환 메서드
+    private PaymentResponse toPaymentResponse(Payment payment) {
+        return new PaymentResponse(
+                payment.getId(),
+                payment.getBill().getId(),
+                payment.getPaymentAmount(),
+                resolvePaymentStatus(payment),
+                resolvePaymentMethod(payment),
+                payment.getPaidAt()
+        );
+    }
+
+    // [추가]
+    // 샘플 데이터/기존 데이터에 PAYMENT_STATUS 가 비어 있을 가능성 대비
+    private String resolvePaymentStatus(Payment payment) {
+        return payment.getStatus() != null
+                ? payment.getStatus().name()
+                : "UNKNOWN";
+    }
+
+    // [추가]
+    // 샘플 데이터/기존 데이터에 PAYMENT_METHOD 가 비어 있을 가능성 대비
+    private String resolvePaymentMethod(Payment payment) {
+        return payment.getMethod() != null
+                ? payment.getMethod().name()
+                : "UNKNOWN";
     }
 }

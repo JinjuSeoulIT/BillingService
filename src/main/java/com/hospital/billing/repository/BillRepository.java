@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.List;
+import java.util.Optional;
 
 public interface BillRepository extends JpaRepository<Bill, Long> {
 
@@ -19,8 +20,13 @@ public interface BillRepository extends JpaRepository<Bill, Long> {
 
     List<Bill> findByStatus(BillingStatus status);
 
-    List<Bill> findByRemainingAmountGreaterThan(Integer amount); //미수금
+    List<Bill> findByRemainingAmountGreaterThan(Integer amount); // 미수금
 
+    // 이벤트 ID 기준 중복 체크
+    Optional<Bill> findBySourceEventId(String sourceEventId);
+
+    // visitId 기준 기존 bill 존재 여부 확인
+    Optional<Bill> findByVisitId(Long visitId);
 
     // 상태별 건수 조회
     @Query("SELECT COUNT(b) FROM Bill b WHERE b.status = :status")
