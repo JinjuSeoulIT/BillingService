@@ -47,4 +47,45 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
 
     // 청구 기준 결제 내역 조회
     List<Payment> findByBill_IdOrderByPaidAtDesc(Long billId);
+
+    /**
+     * [기존]
+     * 청구 상태 계산용 요약 조회
+     * - PAYMENT_METHOD 컬럼을 읽지 않아서 enum 매핑 오류를 우회할 수 있음
+     * - row[0] = PaymentStatus
+     * - row[1] = paymentAmount
+     */
+    @Query("""
+        SELECT p.status, p.paymentAmount
+        FROM Payment p
+        WHERE p.bill.id = :billId
+        ORDER BY p.paidAt DESC
+    """)
+    List<Object[]> findPaymentStatusAndAmountByBillId(@Param("billId") Long billId);
+
+    /**
+     * [2차 최적화]
+     * 목록 조회용 payment 요약 배치 조회
+     * - bill_id 기준으로 한 번에 group by
+     * - BillingStatusQueryService 실제 계산식에 맞춰 COMPLETED / REFUNDED 합계만 조회
+     * - CANCELED payment 는 현재 실제 상태 계산식에서 사용하지 않으므로 제외
+     */
+    @Query("""
+        SELECT
+            p.bill.id AS billId,
+            COALESCE(SUM(CASE WHEN p.status = :completedStatus THEN p.paymentAmount ELSE 0 END), 0) AS completedAmount,
+            COALESCE(SUM(CASE WHEN p.status = :refundedStatus THEN p.paymentAmount ELSE 0 END), 0) AS refundedAmount
+        FROM Payment p
+        WHERE p.bill.id IN :billIds
+        GROUP BY p.bill.id
+    """)
+    List<BillPaymentSummaryProjection> findBillPaymentSummaries(@Param("billIds") List<Long> billIds,
+                                                                @Param("completedStatus") PaymentStatus completedStatus,
+                                                                @Param("refundedStatus") PaymentStatus refundedStatus);
+
+    interface BillPaymentSummaryProjection {
+        Long getBillId();
+        Integer getCompletedAmount();
+        Integer getRefundedAmount();
+    }
 }

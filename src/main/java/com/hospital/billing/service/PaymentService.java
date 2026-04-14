@@ -11,6 +11,8 @@ import com.hospital.billing.exception.InvalidRefundAmountException;
 import com.hospital.billing.exception.PaymentNotFoundException;
 import com.hospital.billing.repository.BillRepository;
 import com.hospital.billing.repository.PaymentRepository;
+import com.hospital.billing.toss.client.TossPaymentClient;
+import com.hospital.billing.toss.dto.TossCancelRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,17 +24,31 @@ public class PaymentService {
 
     private final PaymentRepository paymentRepository;
     private final BillRepository billRepository;
+    private final TossPaymentClient tossPaymentClient;
 
     public PaymentService(PaymentRepository paymentRepository,
-                          BillRepository billRepository) {
+                          BillRepository billRepository,
+                          TossPaymentClient tossPaymentClient) {
         this.paymentRepository = paymentRepository;
         this.billRepository = billRepository;
+        this.tossPaymentClient = tossPaymentClient;
     }
 
     /**
-     * 수납 생성 (자동 계산 포함)
+     * 수납 생성 (기존 방식 유지)
      */
     public PaymentResponse createPayment(Long billId, Integer amount, PaymentMethod method) {
+        return createPayment(billId, amount, method, null, null);
+    }
+
+    /**
+     * 수납 생성 (토스 원거래 정보 포함)
+     */
+    public PaymentResponse createPayment(Long billId,
+                                         Integer amount,
+                                         PaymentMethod method,
+                                         String paymentKey,
+                                         String orderId) {
 
         Bill bill = billRepository.findById(billId)
                 .orElseThrow(() ->
@@ -54,20 +70,24 @@ public class PaymentService {
             throw new IllegalArgumentException("결제 수단이 필요합니다.");
         }
 
-        Payment payment = new Payment(bill, amount, method);
+        Payment payment;
 
-        bill.setPaidAmount(bill.getPaidAmount() + amount);
-        bill.setRemainingAmount(bill.getTotalAmount() - bill.getPaidAmount());
+        // 카드 결제이면서 paymentKey / orderId 가 있으면 토스 원거래 정보까지 저장
+        if (method == PaymentMethod.CARD
+                && paymentKey != null && !paymentKey.isBlank()
+                && orderId != null && !orderId.isBlank()) {
 
-        if (bill.getRemainingAmount() == 0) {
-            bill.setStatus(BillingStatus.PAID);
+            payment = new Payment(bill, amount, method, paymentKey, orderId);
+
         } else {
-            bill.setStatus(BillingStatus.CONFIRMED);
+            payment = new Payment(bill, amount, method);
         }
+
+        int newPaidAmount = bill.getPaidAmount() + amount;
+        applyBillAmounts(bill, newPaidAmount);
 
         Payment saved = paymentRepository.save(payment);
 
-        // null 안전 변환 메서드 사용
         return new PaymentResponse(
                 saved.getId(),
                 saved.getBill().getId(),
@@ -108,16 +128,28 @@ public class PaymentService {
             throw new IllegalStateException("부분 환불 이력이 있는 청구는 전체 수납 취소를 할 수 없습니다.");
         }
 
-        payment.cancel();
+        // 카드 결제면 토스 취소 먼저 호출
+        if (payment.getMethod() == PaymentMethod.CARD) {
+            if (payment.getPaymentKey() == null || payment.getPaymentKey().isBlank()) {
+                throw new IllegalStateException("카드 결제의 paymentKey가 없어 토스 취소를 진행할 수 없습니다.");
+            }
 
-        bill.setPaidAmount(bill.getPaidAmount() - payment.getPaymentAmount());
-        bill.setRemainingAmount(bill.getTotalAmount() - bill.getPaidAmount());
+            TossCancelRequest cancelRequest = new TossCancelRequest();
+            cancelRequest.setPaymentKey(payment.getPaymentKey());
+            cancelRequest.setCancelReason("사용자 요청에 의한 전체 취소");
+            cancelRequest.setCancelAmount(Long.valueOf(payment.getPaymentAmount()));
 
-        if (bill.getPaidAmount() == 0) {
-            bill.setStatus(BillingStatus.READY);
-        } else {
-            bill.setStatus(BillingStatus.CONFIRMED);
+            tossPaymentClient.cancelPayment(cancelRequest);
         }
+
+        int newPaidAmount = bill.getPaidAmount() - payment.getPaymentAmount();
+
+        if (newPaidAmount < 0) {
+            throw new IllegalStateException("취소 처리 후 결제 금액이 음수가 되어 취소를 진행할 수 없습니다.");
+        }
+
+        payment.cancel();
+        applyBillAmounts(bill, newPaidAmount);
     }
 
     /**
@@ -143,21 +175,26 @@ public class PaymentService {
 
         Bill bill = originalPayment.getBill();
 
-        bill.setPaidAmount(bill.getPaidAmount() - refundAmount);
-        bill.setRemainingAmount(bill.getTotalAmount() - bill.getPaidAmount());
-
-        if (bill.getPaidAmount() == 0) {
-            bill.setStatus(BillingStatus.READY);
-        } else {
-            bill.setStatus(BillingStatus.CONFIRMED);
+        // 1차 방어:
+        // 현재 청구의 유효 결제 금액보다 더 많이 환불되면 안 됨
+        if (refundAmount > bill.getPaidAmount()) {
+            throw new InvalidRefundAmountException("환불 금액이 현재 유효 결제 금액보다 클 수 없습니다.");
         }
+
+        int newPaidAmount = bill.getPaidAmount() - refundAmount;
+
+        // 음수 방지
+        if (newPaidAmount < 0) {
+            throw new InvalidRefundAmountException("환불 처리 후 결제 금액이 음수가 될 수 없습니다.");
+        }
+
+        applyBillAmounts(bill, newPaidAmount);
 
         Payment refund = new Payment(bill, refundAmount, originalPayment.getMethod());
         refund.setStatus(PaymentStatus.REFUNDED);
 
         Payment saved = paymentRepository.save(refund);
 
-        // null 안전 변환 메서드 사용
         return new PaymentResponse(
                 saved.getId(),
                 saved.getBill().getId(),
@@ -173,7 +210,7 @@ public class PaymentService {
      */
     public List<PaymentResponse> getPaymentsAsResponse() {
         return paymentRepository.findAll().stream()
-                .map(this::toPaymentResponse) // [수정] 공통 변환 메서드 사용
+                .map(this::toPaymentResponse)
                 .toList();
     }
 
@@ -185,12 +222,10 @@ public class PaymentService {
         return paymentRepository
                 .findByBill_IdOrderByPaidAtDesc(billId)
                 .stream()
-                .map(this::toPaymentResponse) // [수정] 공통 변환 메서드 사용
+                .map(this::toPaymentResponse)
                 .toList();
     }
 
-    // [추가]
-    // Payment -> PaymentResponse 공통 변환 메서드
     private PaymentResponse toPaymentResponse(Payment payment) {
         return new PaymentResponse(
                 payment.getId(),
@@ -202,19 +237,46 @@ public class PaymentService {
         );
     }
 
-    // [추가]
-    // 샘플 데이터/기존 데이터에 PAYMENT_STATUS 가 비어 있을 가능성 대비
     private String resolvePaymentStatus(Payment payment) {
         return payment.getStatus() != null
                 ? payment.getStatus().name()
                 : "UNKNOWN";
     }
 
-    // [추가]
-    // 샘플 데이터/기존 데이터에 PAYMENT_METHOD 가 비어 있을 가능성 대비
     private String resolvePaymentMethod(Payment payment) {
         return payment.getMethod() != null
                 ? payment.getMethod().name()
                 : "UNKNOWN";
+    }
+
+    /**
+     * Bill 금액/상태 재계산 공통 처리
+     */
+    private void applyBillAmounts(Bill bill, int newPaidAmount) {
+        if (newPaidAmount < 0) {
+            throw new IllegalStateException("결제 금액은 음수가 될 수 없습니다.");
+        }
+
+        int totalAmount = bill.getTotalAmount();
+        int newRemainingAmount = totalAmount - newPaidAmount;
+
+        if (newRemainingAmount < 0) {
+            throw new IllegalStateException("남은 금액은 음수가 될 수 없습니다.");
+        }
+
+        if (newRemainingAmount > totalAmount) {
+            throw new IllegalStateException("남은 금액이 총 청구 금액보다 클 수 없습니다.");
+        }
+
+        bill.setPaidAmount(newPaidAmount);
+        bill.setRemainingAmount(newRemainingAmount);
+
+        if (newRemainingAmount == 0) {
+            bill.setStatus(BillingStatus.PAID);
+        } else if (newPaidAmount == 0) {
+            bill.setStatus(BillingStatus.READY);
+        } else {
+            bill.setStatus(BillingStatus.CONFIRMED);
+        }
     }
 }

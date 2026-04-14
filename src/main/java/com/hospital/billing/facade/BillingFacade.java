@@ -11,6 +11,7 @@ import com.hospital.billing.repository.BillItemRepository;
 import com.hospital.billing.repository.BillItemSourceRepository;
 import com.hospital.billing.repository.BillRepository;
 import com.hospital.billing.service.BillingRequestService;
+import com.hospital.billing.service.NoSequenceService;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,15 +30,18 @@ public class BillingFacade {
     private final BillItemRepository billItemRepository;
     private final BillItemSourceRepository billItemSourceRepository;
     private final BillingRequestService billingRequestService;
+    private final NoSequenceService noSequenceService;
 
     public BillingFacade(BillRepository billRepository,
                          BillItemRepository billItemRepository,
                          BillItemSourceRepository billItemSourceRepository,
-                         BillingRequestService billingRequestService) {
+                         BillingRequestService billingRequestService,
+                         NoSequenceService noSequenceService) {
         this.billRepository = billRepository;
         this.billItemRepository = billItemRepository;
         this.billItemSourceRepository = billItemSourceRepository;
         this.billingRequestService = billingRequestService;
+        this.noSequenceService = noSequenceService;
     }
 
     @Transactional
@@ -104,7 +108,6 @@ public class BillingFacade {
                 return new ClinicalCompletedResult(existingByVisitId.getId(), true);
             }
 
-            // [핵심 변경]
             // clinical에서 전달받은 items를 billing 저장용 임시 모델로 변환
             List<TempBillItem> tempItems = convertRequestItems(request.getItems());
 
@@ -123,6 +126,10 @@ public class BillingFacade {
                     totalAmount,
                     createdAt
             );
+
+            // 추가: 프로시저로 청구번호 생성
+            String billingNo = noSequenceService.getNextNo("BILLING_NO");
+            bill.setBillingNo(billingNo);
 
             // 4. 연동 식별값 세팅
             bill.setVisitId(request.getVisitId());
@@ -213,7 +220,6 @@ public class BillingFacade {
             throw new IllegalArgumentException("status는 필수입니다.");
         }
 
-        // [추가]
         // items 빈 배열은 clinical 쪽에서는 허용 가능하다고 했지만,
         // billing에서는 실제 청구 항목이 없으면 bill 생성 실패로 처리하는 쪽이 더 안전함
         if (request.getItems() == null || request.getItems().isEmpty()) {
@@ -233,7 +239,6 @@ public class BillingFacade {
         return value == null || value.trim().isEmpty();
     }
 
-    // [추가]
     // clinical claims items -> billing 저장용 임시 모델 변환
     private List<TempBillItem> convertRequestItems(List<ClinicalClaimItemRequest> requestItems) {
         List<TempBillItem> result = new ArrayList<>();
@@ -242,16 +247,13 @@ public class BillingFacade {
             if (requestItem == null) {
                 continue;
             }
-
             if (requestItem.getSourceId() == null) {
                 throw new IllegalArgumentException("청구 항목의 sourceId는 필수입니다.");
             }
-
             String resolvedItemName = resolveItemName(
                     requestItem.getItemName(),
                     requestItem.getItemCode()
             );
-
             String resolvedOrderType = normalizeText(requestItem.getOrderType());
             String resolvedSourceType = resolveSourceType(requestItem.getSourceType());
 
@@ -274,28 +276,26 @@ public class BillingFacade {
         return result;
     }
 
-    // [추가]
+
     // itemName 비어 있으면 itemCode, 그것도 없으면 '미정'
     private String resolveItemName(String itemName, String itemCode) {
         if (!isBlank(itemName)) {
             return itemName.trim();
         }
-
         if (!isBlank(itemCode)) {
             return itemCode.trim();
         }
-
         return "미정";
     }
 
-    // [추가]
+
     // sourceType은 현재 합의 기준으로 CLINICAL_ORDER_ITEM 고정
     // clinical에서 값이 오더라도 billing 기준으로 한 번 고정해줌
     private String resolveSourceType(String sourceType) {
         return FIXED_SOURCE_TYPE;
     }
 
-    // [추가]
+
     // amount는 아직 clinical DB에 없으므로 billing 임시 규칙 사용
     // 추후 단가/수가 정책 확정 시 이 메서드만 교체하면 됨
     private int resolveAmountByOrderType(String orderType) {

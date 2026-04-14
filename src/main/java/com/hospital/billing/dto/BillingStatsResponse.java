@@ -3,8 +3,9 @@ package com.hospital.billing.dto;
 public class BillingStatsResponse {
 
     private long readyCount;          // 결제 대기 건수
-    private long confirmedCount;      // 진행 중(부분 수납 포함) 건수
+    private long confirmedCount;      // 부분 수납 건수
     private long paidCount;           // 결제 완료 건수
+    private long finalConfirmedCount; // 완납 후 청구 확정 건수
 
     // ===== [CHANGED] 금액 통계 구조 변경 =====
     private long todayCompletedAmount;   // 오늘 결제(COMPLETED) 합계
@@ -18,6 +19,7 @@ public class BillingStatsResponse {
     public BillingStatsResponse(long readyCount,
                                 long confirmedCount,
                                 long paidCount,
+                                long finalConfirmedCount,
 
                                 // [CHANGED] 생성자 파라미터 변경
                                 long todayCompletedAmount,
@@ -30,6 +32,7 @@ public class BillingStatsResponse {
         this.readyCount = readyCount;
         this.confirmedCount = confirmedCount;
         this.paidCount = paidCount;
+        this.finalConfirmedCount = finalConfirmedCount;
 
         // [CHANGED] 필드 세팅 변경
         this.todayCompletedAmount = todayCompletedAmount;
@@ -50,6 +53,10 @@ public class BillingStatsResponse {
 
     public long getPaidCount() {
         return paidCount;
+    }
+
+    public long getFinalConfirmedCount() {
+        return finalConfirmedCount;
     }
 
     // ===== [CHANGED] 새 getter 추가 =====

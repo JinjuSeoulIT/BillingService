@@ -3,6 +3,8 @@ package com.hospital.billing.toss.client;
 import com.hospital.billing.toss.config.TossPaymentProperties;
 import com.hospital.billing.toss.dto.TossApproveRequest;
 import com.hospital.billing.toss.dto.TossApproveResponse;
+import com.hospital.billing.toss.dto.TossCancelRequest;
+import com.hospital.billing.toss.dto.TossCancelResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpEntity;
@@ -17,6 +19,7 @@ import org.springframework.web.client.RestTemplate;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 @Component
@@ -90,6 +93,83 @@ public class TossPaymentClient {
             throw e;
         } catch (Exception e) {
             log.error("[toss] confirmPayment unexpected error", e);
+            throw e;
+        }
+    }
+
+    public TossCancelResponse cancelPayment(TossCancelRequest request) {
+        String url = tossPaymentProperties.getBaseUrl()
+                + "/v1/payments/"
+                + request.getPaymentKey()
+                + "/cancel";
+
+        log.info("[toss] cancelPayment start");
+        log.info("[toss] url={}", url);
+        log.info("[toss] paymentKey={}", maskPaymentKey(request.getPaymentKey()));
+        log.info("[toss] cancelAmount={}", request.getCancelAmount());
+        log.info("[toss] secretKeyLoaded={}",
+                tossPaymentProperties.getSecretKey() != null && !tossPaymentProperties.getSecretKey().isBlank());
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.setBasicAuth(createEncodedSecretKey());
+
+        Map<String, Object> body = new HashMap<>();
+        body.put("cancelReason", request.getCancelReason());
+
+        if (request.getCancelAmount() != null && request.getCancelAmount() > 0) {
+            body.put("cancelAmount", request.getCancelAmount());
+        }
+
+        HttpEntity<Map<String, Object>> httpEntity = new HttpEntity<>(body, headers);
+
+        try {
+            ResponseEntity<Map> response = restTemplate.exchange(
+                    url,
+                    HttpMethod.POST,
+                    httpEntity,
+                    Map.class
+            );
+
+            Map<String, Object> responseBody = response.getBody();
+
+            log.info("[toss] cancelPayment success status={}", response.getStatusCode());
+
+            if (responseBody == null) {
+                throw new RuntimeException("토스 취소 응답이 비어 있습니다.");
+            }
+
+            TossCancelResponse cancelResponse = new TossCancelResponse();
+            cancelResponse.setPaymentKey((String) responseBody.get("paymentKey"));
+            cancelResponse.setOrderId((String) responseBody.get("orderId"));
+            cancelResponse.setStatus((String) responseBody.get("status"));
+            cancelResponse.setMethod((String) responseBody.get("method"));
+
+            Object totalAmount = responseBody.get("totalAmount");
+            if (totalAmount instanceof Number number) {
+                cancelResponse.setTotalAmount(number.longValue());
+            }
+
+            Object cancelsObj = responseBody.get("cancels");
+            if (cancelsObj instanceof List<?> cancels && !cancels.isEmpty()) {
+                Object firstCancel = cancels.get(0);
+                if (firstCancel instanceof Map<?, ?> cancelMap) {
+                    Object cancelAmount = cancelMap.get("cancelAmount");
+                    if (cancelAmount instanceof Number number) {
+                        cancelResponse.setCanceledAmount(number.longValue());
+                    }
+                }
+            }
+
+            return cancelResponse;
+
+        } catch (HttpStatusCodeException e) {
+            log.error("[toss] cancelPayment http error status={}", e.getStatusCode());
+            log.error("[toss] cancelPayment response body={}", e.getResponseBodyAsString());
+            log.error("[toss] cancelPayment response headers={}", e.getResponseHeaders());
+            throw e;
+        } catch (Exception e) {
+            log.error("[toss] cancelPayment unexpected error", e);
             throw e;
         }
     }

@@ -8,6 +8,10 @@ import java.time.LocalDateTime;
 public class BillSummaryResponse {
 
     private Long billId;
+
+    // 추가: 업무용 청구 번호
+    private String billingNo;
+
     private Long patientId;
     private LocalDateTime treatmentDate;
     private Integer totalAmount;
@@ -17,9 +21,9 @@ public class BillSummaryResponse {
     public BillSummaryResponse() {
     }
 
-    // ⭐ Bill 엔티티 기반 생성자 추가
     public BillSummaryResponse(Bill bill) {
         this.billId = bill.getId();
+        this.billingNo = bill.getBillingNo(); // 추가
         this.patientId = bill.getPatientId();
         this.treatmentDate = bill.getTreatmentDate().toLocalDateTime();
         this.totalAmount = bill.getTotalAmount();
@@ -27,8 +31,26 @@ public class BillSummaryResponse {
         this.remainingAmount = bill.getRemainingAmount();
     }
 
+    /**
+     * 계산형 상태 반영용 생성자
+     */
+    public BillSummaryResponse(Bill bill, BillingStatus calculatedStatus) {
+        this.billId = bill.getId();
+        this.billingNo = bill.getBillingNo(); // 추가
+        this.patientId = bill.getPatientId();
+        this.treatmentDate = bill.getTreatmentDate().toLocalDateTime();
+        this.totalAmount = bill.getTotalAmount();
+        this.status = calculatedStatus;
+        this.remainingAmount = bill.getRemainingAmount();
+    }
+
     public Long getBillId() {
         return billId;
+    }
+
+    // 추가
+    public String getBillingNo() {
+        return billingNo;
     }
 
     public Long getPatientId() {

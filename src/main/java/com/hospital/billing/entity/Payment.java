@@ -28,7 +28,6 @@ public class Payment {
     @Column(name = "PAYMENT_STATUS", nullable = false)
     private PaymentStatus status;
 
-    // [수정] String → PaymentMethod enum
     @Enumerated(EnumType.STRING)
     @Column(name = "PAYMENT_METHOD", nullable = false)
     private PaymentMethod method;
@@ -36,15 +35,38 @@ public class Payment {
     @Column(name = "PAID_AT")
     private Timestamp paidAt;
 
+    // 토스 카드 결제 원거래 식별값
+    @Column(name = "PAYMENT_KEY", length = 200)
+    private String paymentKey;
+
+    // 토스 주문 번호
+    @Column(name = "ORDER_ID", length = 100)
+    private String orderId;
+
     protected Payment() {}
 
-    // [수정] 결제수단 받는 생성자
+    // 기존 생성자 유지
     public Payment(Bill bill, Integer paymentAmount, PaymentMethod method) {
         this.bill = bill;
         this.paymentAmount = paymentAmount;
         this.status = PaymentStatus.COMPLETED;
         this.method = method;
         this.paidAt = new Timestamp(System.currentTimeMillis());
+    }
+
+    // 카드 결제용 생성자
+    public Payment(Bill bill,
+                   Integer paymentAmount,
+                   PaymentMethod method,
+                   String paymentKey,
+                   String orderId) {
+        this.bill = bill;
+        this.paymentAmount = paymentAmount;
+        this.status = PaymentStatus.COMPLETED;
+        this.method = method;
+        this.paidAt = new Timestamp(System.currentTimeMillis());
+        this.paymentKey = paymentKey;
+        this.orderId = orderId;
     }
 
     public void cancel() {
@@ -58,13 +80,23 @@ public class Payment {
         this.status = status;
     }
 
+    // [추가] 필요 시 승인정보 저장/수정용 setter
+    public void setPaymentKey(String paymentKey) {
+        this.paymentKey = paymentKey;
+    }
+
+    public void setOrderId(String orderId) {
+        this.orderId = orderId;
+    }
+
     public Long getId() { return id; }
     public Bill getBill() { return bill; }
     public Integer getPaymentAmount() { return paymentAmount; }
     public PaymentStatus getStatus() { return status; }
-
-    // [수정] 반환 타입 String → PaymentMethod
     public PaymentMethod getMethod() { return method; }
-
     public Timestamp getPaidAt() { return paidAt; }
+
+    // [추가] 토스 취소 시 필요
+    public String getPaymentKey() { return paymentKey; }
+    public String getOrderId() { return orderId; }
 }

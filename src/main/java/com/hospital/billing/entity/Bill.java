@@ -17,6 +17,10 @@ public class Bill {
     @Column(name = "BILL_ID")
     private Long id;
 
+    // 추가: 업무용 청구 번호
+    @Column(name = "BILLING_NO", unique = true, length = 30)
+    private String billingNo;
+
     // 환자 ID
     @Column(name = "PATIENT_ID", nullable = false)
     private Long patientId;
@@ -74,6 +78,16 @@ public class Bill {
 
     public Long getId() {
         return id;
+    }
+
+    // 추가
+    public String getBillingNo() {
+        return billingNo;
+    }
+
+    // 추가
+    public void setBillingNo(String billingNo) {
+        this.billingNo = billingNo;
     }
 
     public Long getPatientId() {

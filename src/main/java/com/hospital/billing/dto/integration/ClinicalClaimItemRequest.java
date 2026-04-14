@@ -2,20 +2,10 @@ package com.hospital.billing.dto.integration;
 
 public class ClinicalClaimItemRequest {
 
-    // clinical ORDER_ITEM 기준 항목명
     private String itemName;
-
-    // clinical ORDER_ITEM 코드
     private String itemCode;
-
-    // clinical ORDER 헤더의 orderType
-    // 예: PRESCRIPTION, BLOOD
     private String orderType;
-
-    // sourceId = ORDER_ITEM_ID
     private Long sourceId;
-
-    // sourceType = "CLINICAL_ORDER_ITEM" 고정
     private String sourceType;
 
     public ClinicalClaimItemRequest() {

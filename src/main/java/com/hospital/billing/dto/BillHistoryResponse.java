@@ -4,40 +4,64 @@ import java.time.LocalDateTime;
 
 public class BillHistoryResponse {
 
-    private Long historyId;            // 이력 ID (나중에 History 테이블 생기면 연결)
-    private Long billId;               // 어떤 Bill의 이력인지
-    private String action;             // 예: CREATED / CONFIRMED / CANCELED / UPDATED
-    private String message;            // 상세 설명(선택)
-    private LocalDateTime createdAt;   // 이력이 기록된 시간
+    private LocalDateTime occurredAt;
+    private String historyType;
+    private String title;
+    private String description;
+    private int amount;
 
     public BillHistoryResponse() {
     }
 
-    public BillHistoryResponse(Long historyId, Long billId, String action, String message, LocalDateTime createdAt) {
-        this.historyId = historyId;
-        this.billId = billId;
-        this.action = action;
-        this.message = message;
-        this.createdAt = createdAt;
+    public BillHistoryResponse(LocalDateTime occurredAt,
+                               String historyType,
+                               String title,
+                               String description,
+                               int amount) {
+        this.occurredAt = occurredAt;
+        this.historyType = historyType;
+        this.title = title;
+        this.description = description;
+        this.amount = amount;
     }
 
-    public Long getHistoryId() {
-        return historyId;
+    public LocalDateTime getOccurredAt() {
+        return occurredAt;
     }
 
-    public Long getBillId() {
-        return billId;
+    public void setOccurredAt(LocalDateTime occurredAt) {
+        this.occurredAt = occurredAt;
     }
 
-    public String getAction() {
-        return action;
+    public String getHistoryType() {
+        return historyType;
     }
 
-    public String getMessage() {
-        return message;
+    public void setHistoryType(String historyType) {
+        this.historyType = historyType;
     }
 
-    public LocalDateTime getCreatedAt() {
-        return createdAt;
+    public String getTitle() {
+        return title;
+    }
+
+    public void setTitle(String title) {
+        this.title = title;
+    }
+
+    public String getDescription() {
+        return description;
+    }
+
+    public void setDescription(String description) {
+        this.description = description;
+    }
+
+    public int getAmount() {
+        return amount;
+    }
+
+    public void setAmount(int amount) {
+        this.amount = amount;
     }
 }

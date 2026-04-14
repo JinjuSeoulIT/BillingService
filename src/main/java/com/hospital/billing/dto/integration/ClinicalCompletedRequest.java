@@ -10,8 +10,6 @@ public class ClinicalCompletedRequest {
     private Long patientId;
     private String status;
     private LocalDateTime occurredAt;
-
-    // [추가] clinical에서 전달하는 청구 항목 배열
     private List<ClinicalClaimItemRequest> items;
 
     public ClinicalCompletedRequest() {

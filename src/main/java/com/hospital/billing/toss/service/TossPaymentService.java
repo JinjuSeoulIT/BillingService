@@ -5,6 +5,8 @@ import com.hospital.billing.service.PaymentService;
 import com.hospital.billing.toss.client.TossPaymentClient;
 import com.hospital.billing.toss.dto.TossApproveRequest;
 import com.hospital.billing.toss.dto.TossApproveResponse;
+import com.hospital.billing.toss.dto.TossCancelRequest;
+import com.hospital.billing.toss.dto.TossCancelResponse;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -20,7 +22,7 @@ public class TossPaymentService {
     }
 
     public TossApproveResponse approvePayment(TossApproveRequest request) {
-        validateRequest(request);
+        validateApproveRequest(request);
 
         TossApproveResponse response = tossPaymentClient.confirmPayment(request);
 
@@ -29,13 +31,20 @@ public class TossPaymentService {
         paymentService.createPayment(
                 request.getBillId(),
                 paymentAmount,
-                PaymentMethod.CARD
+                PaymentMethod.CARD,
+                request.getPaymentKey(),
+                request.getOrderId()
         );
 
         return response;
     }
 
-    private void validateRequest(TossApproveRequest request) {
+    public TossCancelResponse cancelPayment(TossCancelRequest request) {
+        validateCancelRequest(request);
+        return tossPaymentClient.cancelPayment(request);
+    }
+
+    private void validateApproveRequest(TossApproveRequest request) {
         if (request == null) {
             throw new IllegalArgumentException("토스 승인 요청 정보가 없습니다.");
         }
@@ -54,6 +63,24 @@ public class TossPaymentService {
 
         if (request.getBillId() == null || request.getBillId() <= 0) {
             throw new IllegalArgumentException("billId는 0보다 커야 합니다.");
+        }
+    }
+
+    private void validateCancelRequest(TossCancelRequest request) {
+        if (request == null) {
+            throw new IllegalArgumentException("토스 취소 요청 정보가 없습니다.");
+        }
+
+        if (request.getPaymentKey() == null || request.getPaymentKey().isBlank()) {
+            throw new IllegalArgumentException("paymentKey는 필수입니다.");
+        }
+
+        if (request.getCancelReason() == null || request.getCancelReason().isBlank()) {
+            throw new IllegalArgumentException("cancelReason은 필수입니다.");
+        }
+
+        if (request.getCancelAmount() != null && request.getCancelAmount() <= 0) {
+            throw new IllegalArgumentException("cancelAmount는 0보다 커야 합니다.");
         }
     }
 
