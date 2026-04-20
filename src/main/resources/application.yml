@@ -1,6 +1,25 @@
 ﻿server:
   port: 8081
 spring:
+  cloud:
+    stream:
+      defaultBinder: kafka
+      default:
+        contentType: application/json
+      function:
+        definition: clinicalCompletedConsumer
+      bindings:
+        clinicalCompletedConsumer-in-0:
+          destination: his.clinical.visit-completed
+          group: billingClinicalCompletedGroup
+      kafka:
+        bindings:
+          clinicalCompletedConsumer-in-0:
+            consumer:
+              startOffset: earliest
+        binder:
+          brokers: ${KAFKA_BROKERS:192.168.1.60}
+          defaultBrokerPort: ${KAFKA_BROKER_PORT:9092}
   datasource:
     driver-class-name: oracle.jdbc.OracleDriver
     url: jdbc:oracle:thin:@192.168.1.67:1521:XE
