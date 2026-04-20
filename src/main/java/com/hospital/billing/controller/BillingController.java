@@ -9,6 +9,7 @@ import com.hospital.billing.dto.BillStatusResponse;
 import com.hospital.billing.dto.BillSummaryResponse;
 import com.hospital.billing.dto.BillingStatsResponse;
 import com.hospital.billing.dto.CalculatedBillResponse;
+import com.hospital.billing.dto.insurance.BillingInsuranceSummaryResponse;
 import com.hospital.billing.entity.Bill;
 import com.hospital.billing.entity.BillingStatus;
 import com.hospital.billing.service.BillingService;
@@ -33,16 +34,19 @@ public class BillingController {
             LoggerFactory.getLogger(BillingController.class);
 
     private final BillingService billingService;
+    private final com.hospital.billing.service.BillingInsuranceService billingInsuranceService;
 
-    public BillingController(BillingService billingService) {
+    public BillingController(BillingService billingService,
+                             com.hospital.billing.service.BillingInsuranceService billingInsuranceService) {
         this.billingService = billingService;
+        this.billingInsuranceService = billingInsuranceService;
     }
 
     @PostMapping("/bills/{billId}/confirm")
     public ApiResponse<BillConfirmResponse> confirm(
             @PathVariable Long billId
     ) {
-        Bill bill = billingService.confirm(billId);
+        Bill bill = billingService.confirm(billId, "ADM-2026-0001");
 
         return ApiResponse.success(
                 new BillConfirmResponse(
@@ -57,7 +61,7 @@ public class BillingController {
     public ApiResponse<BillCancelResponse> cancel(
             @PathVariable Long billId
     ) {
-        Bill bill = billingService.cancel(billId);
+        Bill bill = billingService.cancel(billId, "ADM-2026-0001");
 
         return ApiResponse.success(
                 new BillCancelResponse(
@@ -72,7 +76,7 @@ public class BillingController {
     public ApiResponse<BillConfirmResponse> unconfirm(
             @PathVariable Long billId
     ) {
-        Bill bill = billingService.unconfirm(billId);
+        Bill bill = billingService.unconfirm(billId, "ADM-2026-0001");
 
         return ApiResponse.success(
                 new BillConfirmResponse(
@@ -87,7 +91,7 @@ public class BillingController {
     public ApiResponse<BillConfirmResponse> restore(
             @PathVariable Long billId
     ) {
-        Bill bill = billingService.restore(billId);
+        Bill bill = billingService.restore(billId, "ADM-2026-0001");
 
         return ApiResponse.success(
                 new BillConfirmResponse(
@@ -139,6 +143,17 @@ public class BillingController {
                 billingService.getCalculatedBill(billId);
 
         return ApiResponse.success(result, "자동 계산된 진료비 조회 성공");
+    }
+
+
+    @GetMapping("/bills/{billId}/insurance-summary")
+    public ApiResponse<BillingInsuranceSummaryResponse> getInsuranceSummary(
+            @PathVariable Long billId
+    ) {
+        BillingInsuranceSummaryResponse result =
+                billingInsuranceService.getInsuranceSummary(billId);
+
+        return ApiResponse.success(result, "보험 요약 조회 성공");
     }
 
     @GetMapping("/bills/{billId}/items")

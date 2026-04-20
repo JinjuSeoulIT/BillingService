@@ -1,5 +1,6 @@
-package com.hospital.billing.entity;
+package com.hospital.billing.payment.entity;
 
+import com.hospital.billing.entity.Bill;
 import jakarta.persistence.*;
 import java.sql.Timestamp;
 
@@ -42,6 +43,14 @@ public class Payment {
     // 토스 주문 번호
     @Column(name = "ORDER_ID", length = 100)
     private String orderId;
+
+    // [추가] 결제 생성 직원 ID
+    @Column(name = "CREATED_BY", length = 30)
+    private String createdBy;
+
+    // [추가] 결제 취소 직원 ID
+    @Column(name = "CANCELED_BY", length = 30)
+    private String canceledBy;
 
     protected Payment() {}
 
@@ -89,6 +98,15 @@ public class Payment {
         this.orderId = orderId;
     }
 
+    // [추가] 직원 ID setter
+    public void setCreatedBy(String createdBy) {
+        this.createdBy = createdBy;
+    }
+
+    public void setCanceledBy(String canceledBy) {
+        this.canceledBy = canceledBy;
+    }
+
     public Long getId() { return id; }
     public Bill getBill() { return bill; }
     public Integer getPaymentAmount() { return paymentAmount; }
@@ -99,4 +117,8 @@ public class Payment {
     // [추가] 토스 취소 시 필요
     public String getPaymentKey() { return paymentKey; }
     public String getOrderId() { return orderId; }
+
+    // [추가] 직원 ID getter
+    public String getCreatedBy() { return createdBy; }
+    public String getCanceledBy() { return canceledBy; }
 }

@@ -19,3 +19,7 @@ spring:
 toss:
     secret-key: ${TOSS_SECRET_KEY}
     base-url: https://api.tosspayments.com
+
+patient:
+  api:
+    base-url: ${PATIENT_API_BASE_URL:http://192.168.1.60:8181}

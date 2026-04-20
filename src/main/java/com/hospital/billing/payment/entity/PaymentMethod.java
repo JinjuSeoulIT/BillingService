@@ -1,4 +1,4 @@
-package com.hospital.billing.entity;
+package com.hospital.billing.payment.entity;
 
 public enum PaymentMethod {
 

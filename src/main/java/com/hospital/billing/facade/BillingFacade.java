@@ -19,12 +19,27 @@ import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
+import java.util.Set;
 
 @Component
 public class BillingFacade {
 
     private static final String FIXED_SOURCE_TYPE = "CLINICAL_ORDER_ITEM";
+    private static final String REQUIRED_STATUS = "COMPLETED";
+
+    private static final String ORDER_TYPE_PRESCRIPTION = "PRESCRIPTION";
+    private static final String ORDER_TYPE_PROCEDURE = "PROCEDURE";
+    private static final String ORDER_TYPE_IMAGING = "IMAGING";
+    private static final String ORDER_TYPE_LAB = "LAB";
+
+    private static final Set<String> ALLOWED_ORDER_TYPES = Set.of(
+            ORDER_TYPE_PRESCRIPTION,
+            ORDER_TYPE_PROCEDURE,
+            ORDER_TYPE_IMAGING,
+            ORDER_TYPE_LAB
+    );
 
     private final BillRepository billRepository;
     private final BillItemRepository billItemRepository;
@@ -144,6 +159,9 @@ public class BillingFacade {
                 BillItem billItem = BillItem.create(
                         savedBill,
                         tempItem.getItemName(),
+                        tempItem.getItemCategory(),
+                        tempItem.getQuantity(),
+                        tempItem.getUnitPrice(),
                         tempItem.getAmount()
                 );
                 billItems.add(billItem);
@@ -212,12 +230,25 @@ public class BillingFacade {
             throw new IllegalArgumentException("visitId는 필수입니다.");
         }
 
+        if (request.getVisitId() <= 0L) {
+            throw new IllegalArgumentException("visitId는 0보다 커야 합니다.");
+        }
+
         if (request.getPatientId() == null) {
             throw new IllegalArgumentException("patientId는 필수입니다.");
         }
 
-        if (isBlank(request.getStatus())) {
+        if (request.getPatientId() <= 0L) {
+            throw new IllegalArgumentException("patientId는 0보다 커야 합니다.");
+        }
+
+        String normalizedStatus = normalizeText(request.getStatus());
+        if (normalizedStatus == null) {
             throw new IllegalArgumentException("status는 필수입니다.");
+        }
+
+        if (!REQUIRED_STATUS.equalsIgnoreCase(normalizedStatus)) {
+            throw new IllegalArgumentException("status는 COMPLETED만 허용됩니다.");
         }
 
         // items 빈 배열은 clinical 쪽에서는 허용 가능하다고 했지만,
@@ -250,17 +281,27 @@ public class BillingFacade {
             if (requestItem.getSourceId() == null) {
                 throw new IllegalArgumentException("청구 항목의 sourceId는 필수입니다.");
             }
+            if (requestItem.getSourceId() <= 0L) {
+                throw new IllegalArgumentException("청구 항목의 sourceId는 0보다 커야 합니다.");
+            }
+
             String resolvedItemName = resolveItemName(
                     requestItem.getItemName(),
                     requestItem.getItemCode()
             );
-            String resolvedOrderType = normalizeText(requestItem.getOrderType());
+            String resolvedOrderType = resolveOrderType(requestItem.getOrderType());
             String resolvedSourceType = resolveSourceType(requestItem.getSourceType());
 
-            int resolvedAmount = resolveAmountByOrderType(resolvedOrderType);
+            String resolvedItemCategory = resolveItemCategory(resolvedOrderType);
+            int resolvedQuantity = resolveQuantity(requestItem);
+            int resolvedUnitPrice = resolveUnitPriceByOrderType(resolvedOrderType);
+            int resolvedAmount = resolvedQuantity * resolvedUnitPrice;
 
             TempBillItem tempItem = new TempBillItem(
                     resolvedItemName,
+                    resolvedItemCategory,
+                    resolvedQuantity,
+                    resolvedUnitPrice,
                     resolvedAmount,
                     resolvedSourceType,
                     requestItem.getSourceId()
@@ -288,28 +329,75 @@ public class BillingFacade {
         return "미정";
     }
 
+    private String resolveOrderType(String orderType) {
+        String normalizedOrderType = normalizeUpperText(orderType);
+
+        if (normalizedOrderType == null) {
+            throw new IllegalArgumentException("청구 항목의 orderType은 필수입니다.");
+        }
+
+        if (!ALLOWED_ORDER_TYPES.contains(normalizedOrderType)) {
+            throw new IllegalArgumentException(
+                    "허용되지 않은 orderType입니다. allowed=" + ALLOWED_ORDER_TYPES + ", input=" + orderType
+            );
+        }
+
+        return normalizedOrderType;
+    }
+
 
     // sourceType은 현재 합의 기준으로 CLINICAL_ORDER_ITEM 고정
     // clinical에서 값이 오더라도 billing 기준으로 한 번 고정해줌
     private String resolveSourceType(String sourceType) {
+        String normalizedSourceType = normalizeUpperText(sourceType);
+
+        if (normalizedSourceType == null) {
+            return FIXED_SOURCE_TYPE;
+        }
+
+        if (!FIXED_SOURCE_TYPE.equals(normalizedSourceType)) {
+            throw new IllegalArgumentException(
+                    "sourceType은 CLINICAL_ORDER_ITEM만 허용됩니다. input=" + sourceType
+            );
+        }
+
         return FIXED_SOURCE_TYPE;
     }
 
 
-    // amount는 아직 clinical DB에 없으므로 billing 임시 규칙 사용
-    // 추후 단가/수가 정책 확정 시 이 메서드만 교체하면 됨
-    private int resolveAmountByOrderType(String orderType) {
-        if (isBlank(orderType)) {
-            return 5000;
-        }
-
-        switch (orderType.trim().toUpperCase()) {
-            case "PRESCRIPTION":
-                return 10000;
-            case "BLOOD":
-                return 20000;
+    // [추가] orderType -> 화면용 항목 분류 매핑
+    private String resolveItemCategory(String orderType) {
+        switch (orderType) {
+            case ORDER_TYPE_PRESCRIPTION:
+                return "MEDICATION";
+            case ORDER_TYPE_LAB:
+            case ORDER_TYPE_IMAGING:
+                return "TEST";
+            case ORDER_TYPE_PROCEDURE:
+                return "PROCEDURE";
             default:
+                return "ETC";
+        }
+    }
+
+    // [추가] 현재 임시 규칙에서는 수량 1건으로 고정
+    private int resolveQuantity(ClinicalClaimItemRequest requestItem) {
+        return 1;
+    }
+
+    // [추가] orderType 기준 임시 단가
+    private int resolveUnitPriceByOrderType(String orderType) {
+        switch (orderType) {
+            case ORDER_TYPE_PRESCRIPTION:
+                return 10000;
+            case ORDER_TYPE_PROCEDURE:
+                return 15000;
+            case ORDER_TYPE_IMAGING:
+                return 20000;
+            case ORDER_TYPE_LAB:
                 return 5000;
+            default:
+                throw new IllegalArgumentException("허용되지 않은 orderType입니다. input=" + orderType);
         }
     }
 
@@ -317,17 +405,31 @@ public class BillingFacade {
         return isBlank(value) ? null : value.trim();
     }
 
+    private String normalizeUpperText(String value) {
+        String normalized = normalizeText(value);
+        return normalized == null ? null : normalized.toUpperCase(Locale.ROOT);
+    }
+
     private static class TempBillItem {
         private final String itemName;
+        private final String itemCategory;
+        private final Integer quantity;
+        private final Integer unitPrice;
         private final Integer amount;
         private final String sourceType;
         private final Long sourceId;
 
         public TempBillItem(String itemName,
+                            String itemCategory,
+                            Integer quantity,
+                            Integer unitPrice,
                             Integer amount,
                             String sourceType,
                             Long sourceId) {
             this.itemName = itemName;
+            this.itemCategory = itemCategory;
+            this.quantity = quantity;
+            this.unitPrice = unitPrice;
             this.amount = amount;
             this.sourceType = sourceType;
             this.sourceId = sourceId;
@@ -335,6 +437,18 @@ public class BillingFacade {
 
         public String getItemName() {
             return itemName;
+        }
+
+        public String getItemCategory() {
+            return itemCategory;
+        }
+
+        public Integer getQuantity() {
+            return quantity;
+        }
+
+        public Integer getUnitPrice() {
+            return unitPrice;
         }
 
         public Integer getAmount() {

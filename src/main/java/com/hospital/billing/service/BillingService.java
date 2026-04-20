@@ -11,14 +11,15 @@ import com.hospital.billing.entity.Bill;
 import com.hospital.billing.entity.BillHistory;
 import com.hospital.billing.entity.BillItem;
 import com.hospital.billing.entity.BillingStatus;
-import com.hospital.billing.entity.Payment;
-import com.hospital.billing.entity.PaymentStatus;
+import com.hospital.billing.payment.entity.Payment;
+import com.hospital.billing.payment.entity.PaymentStatus;
 import com.hospital.billing.repository.BillHistoryRepository;
 import com.hospital.billing.repository.BillItemRepository;
 import com.hospital.billing.repository.BillRepository;
-import com.hospital.billing.repository.PaymentRepository;
+import com.hospital.billing.payment.repository.PaymentRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -32,6 +33,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 @Service
 public class BillingService {
@@ -39,23 +42,44 @@ public class BillingService {
     private static final Logger log =
             LoggerFactory.getLogger(BillingService.class);
 
+    private static final String STAFF_TABLE_OWNER = "CMH";
+    private static final String STAFF_TABLE_NAME = "STAFF";
+    private static final String STAFF_ID_COLUMN = "STAFF_ID";
+
+    private static final List<String> STAFF_NAME_COLUMN_CANDIDATES = List.of(
+            "FULL_NAME",
+            "STAFF_NAME",
+            "NAME",
+            "EMP_NAME",
+            "USER_NAME",
+            "KOR_NAME",
+            "STAFF_NM"
+    );
+
     private final BillRepository billRepository;
     private final PaymentRepository paymentRepository;
     private final BillItemRepository billItemRepository;
     private final BillHistoryRepository billHistoryRepository;
+    private final JdbcTemplate jdbcTemplate;
+
+    // [추가] 이름 조회 캐시
+    private final ConcurrentMap<String, String> staffNameCache = new ConcurrentHashMap<>();
+    private volatile String resolvedStaffNameColumn;
 
     public BillingService(BillRepository billRepository,
                           PaymentRepository paymentRepository,
                           BillItemRepository billItemRepository,
-                          BillHistoryRepository billHistoryRepository) {
+                          BillHistoryRepository billHistoryRepository,
+                          JdbcTemplate jdbcTemplate) {
         this.billRepository = billRepository;
         this.paymentRepository = paymentRepository;
         this.billItemRepository = billItemRepository;
         this.billHistoryRepository = billHistoryRepository;
+        this.jdbcTemplate = jdbcTemplate;
     }
 
     @Transactional
-    public Bill confirm(Long billId) {
+    public Bill confirm(Long billId, String staffId) {
 
         Bill bill = billRepository.findById(billId)
                 .orElseThrow(() -> new IllegalArgumentException("청구 정보를 찾을 수 없습니다."));
@@ -74,6 +98,10 @@ public class BillingService {
             throw new IllegalStateException("완납된 청구만 확정할 수 있습니다.");
         }
 
+        if (staffId == null || staffId.isBlank()) {
+            throw new IllegalArgumentException("직원 ID가 필요합니다.");
+        }
+
         BillingStatus oldStatus = bill.getStatus();
 
         bill.setStatus(BillingStatus.CONFIRMED);
@@ -84,7 +112,7 @@ public class BillingService {
                 savedBill,
                 oldStatus,
                 BillingStatus.CONFIRMED,
-                "SYSTEM",
+                staffId,
                 "청구 확정"
         );
 
@@ -92,7 +120,7 @@ public class BillingService {
     }
 
     @Transactional
-    public Bill cancel(Long billId) {
+    public Bill cancel(Long billId, String staffId) {
 
         Bill bill = billRepository.findById(billId)
                 .orElseThrow(() -> new IllegalArgumentException("청구 정보를 찾을 수 없습니다."));
@@ -101,6 +129,10 @@ public class BillingService {
                 || bill.getRemainingAmount() == null
                 || bill.getRemainingAmount() > 0) {
             throw new IllegalStateException("청구 확정된 건만 취소할 수 있습니다.");
+        }
+
+        if (staffId == null || staffId.isBlank()) {
+            throw new IllegalArgumentException("직원 ID가 필요합니다.");
         }
 
         BillingStatus oldStatus = bill.getStatus();
@@ -113,7 +145,7 @@ public class BillingService {
                 savedBill,
                 oldStatus,
                 BillingStatus.CANCELED,
-                "SYSTEM",
+                staffId,
                 "청구 취소"
         );
 
@@ -121,7 +153,7 @@ public class BillingService {
     }
 
     @Transactional
-    public Bill unconfirm(Long billId) {
+    public Bill unconfirm(Long billId, String staffId) {
 
         Bill bill = billRepository.findById(billId)
                 .orElseThrow(() -> new IllegalArgumentException("청구 정보를 찾을 수 없습니다."));
@@ -136,6 +168,10 @@ public class BillingService {
             throw new IllegalStateException("청구 확정된 건만 확정 해제할 수 있습니다.");
         }
 
+        if (staffId == null || staffId.isBlank()) {
+            throw new IllegalArgumentException("직원 ID가 필요합니다.");
+        }
+
         BillingStatus oldStatus = bill.getStatus();
 
         bill.setStatus(BillingStatus.PAID);
@@ -146,7 +182,7 @@ public class BillingService {
                 savedBill,
                 oldStatus,
                 BillingStatus.PAID,
-                "SYSTEM",
+                staffId,
                 "청구 확정 해제"
         );
 
@@ -154,7 +190,7 @@ public class BillingService {
     }
 
     @Transactional
-    public Bill restore(Long billId) {
+    public Bill restore(Long billId, String staffId) {
 
         Bill bill = billRepository.findById(billId)
                 .orElseThrow(() -> new IllegalArgumentException("청구 정보를 찾을 수 없습니다."));
@@ -167,6 +203,10 @@ public class BillingService {
             throw new IllegalStateException("완납된 취소 청구만 복원할 수 있습니다.");
         }
 
+        if (staffId == null || staffId.isBlank()) {
+            throw new IllegalArgumentException("직원 ID가 필요합니다.");
+        }
+
         BillingStatus oldStatus = bill.getStatus();
 
         bill.setStatus(BillingStatus.PAID);
@@ -177,7 +217,7 @@ public class BillingService {
                 savedBill,
                 oldStatus,
                 BillingStatus.PAID,
-                "SYSTEM",
+                staffId,
                 "청구 복원"
         );
 
@@ -259,7 +299,9 @@ public class BillingService {
                 "BILL_CREATED",
                 "청구 생성",
                 "청구가 생성되었습니다.",
-                safeAmount(bill.getTotalAmount())
+                safeAmount(bill.getTotalAmount()),
+                null,
+                null
         ));
 
         for (Payment payment : payments) {
@@ -273,7 +315,9 @@ public class BillingService {
                         "PAYMENT_COMPLETED",
                         "수납 완료",
                         "수납이 완료되었습니다.",
-                        amount
+                        amount,
+                        payment.getCreatedBy(),
+                        resolveStaffName(payment.getCreatedBy())
                 ));
             } else if (status == PaymentStatus.CANCELED) {
                 histories.add(new BillHistoryResponse(
@@ -281,7 +325,9 @@ public class BillingService {
                         "PAYMENT_CANCELED",
                         "수납 취소",
                         "수납이 취소되었습니다.",
-                        amount
+                        amount,
+                        payment.getCanceledBy(),
+                        resolveStaffName(payment.getCanceledBy())
                 ));
             } else if (status == PaymentStatus.REFUNDED) {
                 histories.add(new BillHistoryResponse(
@@ -289,7 +335,9 @@ public class BillingService {
                         "PAYMENT_REFUNDED",
                         "부분 환불",
                         "부분 환불이 처리되었습니다.",
-                        amount
+                        amount,
+                        payment.getCreatedBy(),
+                        resolveStaffName(payment.getCreatedBy())
                 ));
             }
         }
@@ -777,7 +825,9 @@ public class BillingService {
                 historyType,
                 title,
                 description,
-                safeAmount(bill.getTotalAmount())
+                safeAmount(bill.getTotalAmount()),
+                history.getChangedBy(),
+                resolveStaffName(history.getChangedBy())
         );
     }
 
@@ -825,5 +875,117 @@ public class BillingService {
 
     private int safeAmount(Integer amount) {
         return amount == null ? 0 : amount;
+    }
+
+    // =========================
+    // [추가] STAFF 이름 조회 로직
+    // =========================
+
+    private String resolveStaffName(String staffId) {
+        if (staffId == null || staffId.isBlank()) {
+            return null;
+        }
+
+        return staffNameCache.computeIfAbsent(staffId, this::queryStaffNameSafely);
+    }
+
+    private String queryStaffNameSafely(String staffId) {
+        try {
+            String staffNameColumn = getResolvedStaffNameColumn();
+
+            if (staffNameColumn == null || staffNameColumn.isBlank()) {
+                return null;
+            }
+
+            String sql = """
+                    SELECT %s
+                    FROM %s.%s
+                    WHERE %s = ?
+                    """.formatted(
+                    staffNameColumn,
+                    STAFF_TABLE_OWNER,
+                    STAFF_TABLE_NAME,
+                    STAFF_ID_COLUMN
+            );
+
+            List<String> result = jdbcTemplate.query(
+                    sql,
+                    (rs, rowNum) -> rs.getString(1),
+                    staffId
+            );
+
+            if (result.isEmpty()) {
+                return null;
+            }
+
+            String name = result.get(0);
+            return (name == null || name.isBlank()) ? null : name;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private String getResolvedStaffNameColumn() {
+        if (resolvedStaffNameColumn != null) {
+            return resolvedStaffNameColumn;
+        }
+
+        synchronized (this) {
+            if (resolvedStaffNameColumn != null) {
+                return resolvedStaffNameColumn;
+            }
+
+            resolvedStaffNameColumn = detectStaffNameColumn();
+            return resolvedStaffNameColumn;
+        }
+    }
+
+    private String detectStaffNameColumn() {
+        try {
+            List<Map<String, Object>> ownerColumns = jdbcTemplate.queryForList("""
+                    SELECT COLUMN_NAME
+                    FROM ALL_TAB_COLUMNS
+                    WHERE OWNER = ?
+                      AND TABLE_NAME = ?
+                    """, STAFF_TABLE_OWNER, STAFF_TABLE_NAME);
+
+            String resolved = pickStaffNameColumn(ownerColumns);
+            if (resolved != null) {
+                return resolved;
+            }
+        } catch (Exception ignored) {
+        }
+
+        try {
+            List<Map<String, Object>> userColumns = jdbcTemplate.queryForList("""
+                    SELECT COLUMN_NAME
+                    FROM USER_TAB_COLUMNS
+                    WHERE TABLE_NAME = ?
+                    """, STAFF_TABLE_NAME);
+
+            return pickStaffNameColumn(userColumns);
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    private String pickStaffNameColumn(List<Map<String, Object>> columns) {
+        if (columns == null || columns.isEmpty()) {
+            return null;
+        }
+
+        List<String> actualColumns = columns.stream()
+                .map(row -> row.get("COLUMN_NAME"))
+                .filter(value -> value != null)
+                .map(value -> String.valueOf(value).toUpperCase())
+                .toList();
+
+        for (String candidate : STAFF_NAME_COLUMN_CANDIDATES) {
+            if (actualColumns.contains(candidate)) {
+                return candidate;
+            }
+        }
+
+        return null;
     }
 }

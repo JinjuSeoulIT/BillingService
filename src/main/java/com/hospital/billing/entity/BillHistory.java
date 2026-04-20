@@ -33,7 +33,7 @@ public class BillHistory {
     @Column(name = "CHANGED_AT", nullable = false)
     private Timestamp changedAt;
 
-    @Column(name = "CHANGED_BY", length = 50)
+    @Column(name = "CHANGED_BY", length = 30)
     private String changedBy;
 
     @Column(name = "CHANGE_REASON", length = 200)

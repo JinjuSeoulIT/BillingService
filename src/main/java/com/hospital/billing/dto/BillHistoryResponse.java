@@ -9,6 +9,10 @@ public class BillHistoryResponse {
     private String title;
     private String description;
     private int amount;
+    private String changedBy;
+
+    // [추가] 직원명 표시용
+    private String changedByName;
 
     public BillHistoryResponse() {
     }
@@ -17,12 +21,33 @@ public class BillHistoryResponse {
                                String historyType,
                                String title,
                                String description,
-                               int amount) {
+                               int amount,
+                               String changedBy) {
+        this(
+                occurredAt,
+                historyType,
+                title,
+                description,
+                amount,
+                changedBy,
+                null
+        );
+    }
+
+    public BillHistoryResponse(LocalDateTime occurredAt,
+                               String historyType,
+                               String title,
+                               String description,
+                               int amount,
+                               String changedBy,
+                               String changedByName) {
         this.occurredAt = occurredAt;
         this.historyType = historyType;
         this.title = title;
         this.description = description;
         this.amount = amount;
+        this.changedBy = changedBy;
+        this.changedByName = changedByName;
     }
 
     public LocalDateTime getOccurredAt() {
@@ -63,5 +88,21 @@ public class BillHistoryResponse {
 
     public void setAmount(int amount) {
         this.amount = amount;
+    }
+
+    public String getChangedBy() {
+        return changedBy;
+    }
+
+    public void setChangedBy(String changedBy) {
+        this.changedBy = changedBy;
+    }
+
+    public String getChangedByName() {
+        return changedByName;
+    }
+
+    public void setChangedByName(String changedByName) {
+        this.changedByName = changedByName;
     }
 }

@@ -6,15 +6,17 @@ public class TossApproveRequest {
     private String orderId;
     private Long amount;
     private Long billId;
+    private String staffId;
 
     public TossApproveRequest() {
     }
 
-    public TossApproveRequest(String paymentKey, String orderId, Long amount, Long billId) {
+    public TossApproveRequest(String paymentKey, String orderId, Long amount, Long billId, String staffId) {
         this.paymentKey = paymentKey;
         this.orderId = orderId;
         this.amount = amount;
         this.billId = billId;
+        this.staffId = staffId;
     }
 
     public String getPaymentKey() {
@@ -47,5 +49,13 @@ public class TossApproveRequest {
 
     public void setBillId(Long billId) {
         this.billId = billId;
+    }
+
+    public String getStaffId() {
+        return staffId;
+    }
+
+    public void setStaffId(String staffId) {
+        this.staffId = staffId;
     }
 }

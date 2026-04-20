@@ -1,7 +1,7 @@
-package com.hospital.billing.repository;
+package com.hospital.billing.payment.repository;
 
-import com.hospital.billing.entity.Payment;
-import com.hospital.billing.entity.PaymentStatus;
+import com.hospital.billing.payment.entity.Payment;
+import com.hospital.billing.payment.entity.PaymentStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;

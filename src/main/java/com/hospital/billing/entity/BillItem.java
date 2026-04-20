@@ -28,23 +28,72 @@ public class BillItem {
     @Column(name = "ITEM_NAME", nullable = false, length = 200)
     private String itemName;
 
-    // 실제 DB에는 ITEM_AMOUNT 컬럼만 존재하므로 amount만 유지
+    // [추가] 현업형 표시용 항목 분류
+    @Column(name = "ITEM_CATEGORY", nullable = false, length = 30)
+    private String itemCategory;
+
+    // [추가] 수량
+    @Column(name = "QUANTITY", nullable = false)
+    private Integer quantity;
+
+    // [추가] 단가
+    @Column(name = "UNIT_PRICE", nullable = false)
+    private Integer unitPrice;
+
+    // 실제 청구 금액
     @Column(name = "ITEM_AMOUNT", nullable = false)
     private Integer amount;
 
     protected BillItem() {
     }
 
-    // quantity, unitPrice 제거 후 현재 DB 구조에 맞는 생성자로 정리
+    // [추가] 기존 amount만 받던 구조는 하위 호환용으로 유지
     public BillItem(Bill bill, String itemName, Integer amount) {
+        this(
+                bill,
+                itemName,
+                "ETC",
+                1,
+                amount,
+                amount
+        );
+    }
+
+    // [추가] 확장된 생성자
+    public BillItem(Bill bill,
+                    String itemName,
+                    String itemCategory,
+                    Integer quantity,
+                    Integer unitPrice,
+                    Integer amount) {
         this.bill = bill;
         this.itemName = itemName;
+        this.itemCategory = itemCategory;
+        this.quantity = quantity;
+        this.unitPrice = unitPrice;
         this.amount = amount;
     }
 
     // 정적 팩토리 메서드 추가
     public static BillItem create(Bill bill, String itemName, Integer amount) {
         return new BillItem(bill, itemName, amount);
+    }
+
+    // [추가] 현업형 표시용 팩토리
+    public static BillItem create(Bill bill,
+                                  String itemName,
+                                  String itemCategory,
+                                  Integer quantity,
+                                  Integer unitPrice,
+                                  Integer amount) {
+        return new BillItem(
+                bill,
+                itemName,
+                itemCategory,
+                quantity,
+                unitPrice,
+                amount
+        );
     }
 
     // ===== getter / setter =====
@@ -66,6 +115,30 @@ public class BillItem {
 
     public void setItemName(String itemName) {
         this.itemName = itemName;
+    }
+
+    public String getItemCategory() {
+        return itemCategory;
+    }
+
+    public void setItemCategory(String itemCategory) {
+        this.itemCategory = itemCategory;
+    }
+
+    public Integer getQuantity() {
+        return quantity;
+    }
+
+    public void setQuantity(Integer quantity) {
+        this.quantity = quantity;
+    }
+
+    public Integer getUnitPrice() {
+        return unitPrice;
+    }
+
+    public void setUnitPrice(Integer unitPrice) {
+        this.unitPrice = unitPrice;
     }
 
     public Integer getAmount() {

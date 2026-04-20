@@ -1,44 +1,89 @@
-package com.hospital.billing.service;
+package com.hospital.billing.payment.service;
 
-import com.hospital.billing.dto.PaymentResponse;
+import com.hospital.billing.payment.dto.PaymentResponse;
 import com.hospital.billing.entity.Bill;
 import com.hospital.billing.entity.BillingStatus;
-import com.hospital.billing.entity.Payment;
-import com.hospital.billing.entity.PaymentMethod;
-import com.hospital.billing.entity.PaymentStatus;
+import com.hospital.billing.payment.entity.Payment;
+import com.hospital.billing.payment.entity.PaymentMethod;
+import com.hospital.billing.payment.entity.PaymentStatus;
 import com.hospital.billing.exception.InvalidPaymentStatusException;
 import com.hospital.billing.exception.InvalidRefundAmountException;
 import com.hospital.billing.exception.PaymentNotFoundException;
 import com.hospital.billing.repository.BillRepository;
-import com.hospital.billing.repository.PaymentRepository;
+import com.hospital.billing.payment.repository.PaymentRepository;
 import com.hospital.billing.toss.client.TossPaymentClient;
 import com.hospital.billing.toss.dto.TossCancelRequest;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 @Service
 @Transactional
 public class PaymentService {
 
+    private static final String STAFF_TABLE_OWNER = "CMH";
+    private static final String STAFF_TABLE_NAME = "STAFF";
+    private static final String STAFF_ID_COLUMN = "STAFF_ID";
+
+    private static final List<String> STAFF_NAME_COLUMN_CANDIDATES = List.of(
+            "FULL_NAME",
+            "STAFF_NAME",
+            "NAME",
+            "EMP_NAME",
+            "USER_NAME",
+            "KOR_NAME",
+            "STAFF_NM"
+    );
     private final PaymentRepository paymentRepository;
     private final BillRepository billRepository;
     private final TossPaymentClient tossPaymentClient;
+    private final JdbcTemplate jdbcTemplate;
+
+    // [추가] 이름 조회 캐시
+    private final ConcurrentMap<String, String> staffNameCache = new ConcurrentHashMap<>();
+    private volatile String resolvedStaffNameColumn;
 
     public PaymentService(PaymentRepository paymentRepository,
                           BillRepository billRepository,
-                          TossPaymentClient tossPaymentClient) {
+                          TossPaymentClient tossPaymentClient,
+                          JdbcTemplate jdbcTemplate) {
         this.paymentRepository = paymentRepository;
         this.billRepository = billRepository;
+
         this.tossPaymentClient = tossPaymentClient;
+        this.jdbcTemplate = jdbcTemplate;
+    }
+
+    /**
+     * [수정] 현재 담당 직원 ID 조회
+     * - 현재 Oracle FK(FK_PAYMENT_CREATED_BY)에 실제 존재하는 STAFF_ID를 반환해야 함
+     * - 기존 성공 이력 기준 staffId 형식에 맞춰 임시 고정
+     * - 추후 실제 인증/세션 또는 Oracle STAFF 조회 흐름으로 교체
+     */
+    private String getCurrentStaffId() {
+        return "ADM-2026-0001";
     }
 
     /**
      * 수납 생성 (기존 방식 유지)
      */
     public PaymentResponse createPayment(Long billId, Integer amount, PaymentMethod method) {
-        return createPayment(billId, amount, method, null, null);
+        return createPayment(billId, amount, method, null, null, getCurrentStaffId());
+    }
+
+    /**
+     * 수납 생성 (직원 ID 포함)
+     */
+    public PaymentResponse createPayment(Long billId,
+                                         Integer amount,
+                                         PaymentMethod method,
+                                         String staffId) {
+        return createPayment(billId, amount, method, null, null, staffId);
     }
 
     /**
@@ -49,6 +94,18 @@ public class PaymentService {
                                          PaymentMethod method,
                                          String paymentKey,
                                          String orderId) {
+        return createPayment(billId, amount, method, paymentKey, orderId, getCurrentStaffId());
+    }
+
+    /**
+     * 수납 생성 (토스 원거래 정보 + 직원 ID 포함)
+     */
+    public PaymentResponse createPayment(Long billId,
+                                         Integer amount,
+                                         PaymentMethod method,
+                                         String paymentKey,
+                                         String orderId,
+                                         String staffId) {
 
         Bill bill = billRepository.findById(billId)
                 .orElseThrow(() ->
@@ -83,6 +140,10 @@ public class PaymentService {
             payment = new Payment(bill, amount, method);
         }
 
+        if (staffId != null && !staffId.isBlank()) {
+            payment.setCreatedBy(staffId);
+        }
+
         int newPaidAmount = bill.getPaidAmount() + amount;
         applyBillAmounts(bill, newPaidAmount);
 
@@ -94,7 +155,11 @@ public class PaymentService {
                 saved.getPaymentAmount(),
                 resolvePaymentStatus(saved),
                 resolvePaymentMethod(saved),
-                saved.getPaidAt()
+                saved.getPaidAt(),
+                saved.getCreatedBy(),
+                saved.getCanceledBy(),
+                resolveStaffName(saved.getCreatedBy()),
+                resolveStaffName(saved.getCanceledBy())
         );
     }
 
@@ -102,6 +167,13 @@ public class PaymentService {
      * 수납 취소 (전체 취소)
      */
     public void cancelPayment(Long paymentId) {
+        cancelPayment(paymentId, getCurrentStaffId());
+    }
+
+    /**
+     * 수납 취소 (전체 취소, 직원 ID 포함)
+     */
+    public void cancelPayment(Long paymentId, String staffId) {
 
         Payment payment = paymentRepository.findById(paymentId)
                 .orElseThrow(() ->
@@ -149,6 +221,11 @@ public class PaymentService {
         }
 
         payment.cancel();
+
+        if (staffId != null && !staffId.isBlank()) {
+            payment.setCanceledBy(staffId);
+        }
+
         applyBillAmounts(bill, newPaidAmount);
     }
 
@@ -156,6 +233,13 @@ public class PaymentService {
      * 부분 환불 기능
      */
     public PaymentResponse refundPayment(Long paymentId, Integer refundAmount) {
+        return refundPayment(paymentId, refundAmount, getCurrentStaffId());
+    }
+
+    /**
+     * 부분 환불 기능 (직원 ID 포함)
+     */
+    public PaymentResponse refundPayment(Long paymentId, Integer refundAmount, String staffId) {
 
         Payment originalPayment = paymentRepository.findById(paymentId)
                 .orElseThrow(() ->
@@ -175,10 +259,23 @@ public class PaymentService {
 
         Bill bill = originalPayment.getBill();
 
-        // 1차 방어:
         // 현재 청구의 유효 결제 금액보다 더 많이 환불되면 안 됨
         if (refundAmount > bill.getPaidAmount()) {
             throw new InvalidRefundAmountException("환불 금액이 현재 유효 결제 금액보다 클 수 없습니다.");
+        }
+
+        // 카드 결제 환불이면 토스 부분 취소 먼저 호출
+        if (originalPayment.getMethod() == PaymentMethod.CARD) {
+            if (originalPayment.getPaymentKey() == null || originalPayment.getPaymentKey().isBlank()) {
+                throw new IllegalStateException("카드 결제의 paymentKey가 없어 토스 부분 환불을 진행할 수 없습니다.");
+            }
+
+            TossCancelRequest cancelRequest = new TossCancelRequest();
+            cancelRequest.setPaymentKey(originalPayment.getPaymentKey());
+            cancelRequest.setCancelReason("사용자 요청에 의한 부분 환불");
+            cancelRequest.setCancelAmount(Long.valueOf(refundAmount));
+
+            tossPaymentClient.cancelPayment(cancelRequest);
         }
 
         int newPaidAmount = bill.getPaidAmount() - refundAmount;
@@ -193,6 +290,10 @@ public class PaymentService {
         Payment refund = new Payment(bill, refundAmount, originalPayment.getMethod());
         refund.setStatus(PaymentStatus.REFUNDED);
 
+        if (staffId != null && !staffId.isBlank()) {
+            refund.setCreatedBy(staffId);
+        }
+
         Payment saved = paymentRepository.save(refund);
 
         return new PaymentResponse(
@@ -201,7 +302,11 @@ public class PaymentService {
                 saved.getPaymentAmount(),
                 resolvePaymentStatus(saved),
                 resolvePaymentMethod(saved),
-                saved.getPaidAt()
+                saved.getPaidAt(),
+                saved.getCreatedBy(),
+                saved.getCanceledBy(),
+                resolveStaffName(saved.getCreatedBy()),
+                resolveStaffName(saved.getCanceledBy())
         );
     }
 
@@ -233,7 +338,11 @@ public class PaymentService {
                 payment.getPaymentAmount(),
                 resolvePaymentStatus(payment),
                 resolvePaymentMethod(payment),
-                payment.getPaidAt()
+                payment.getPaidAt(),
+                payment.getCreatedBy(),
+                payment.getCanceledBy(),
+                resolveStaffName(payment.getCreatedBy()),
+                resolveStaffName(payment.getCanceledBy())
         );
     }
 
@@ -278,5 +387,117 @@ public class PaymentService {
         } else {
             bill.setStatus(BillingStatus.CONFIRMED);
         }
+    }
+
+    // =========================
+    // [추가] STAFF 이름 조회 로직
+    // =========================
+
+    private String resolveStaffName(String staffId) {
+        if (staffId == null || staffId.isBlank()) {
+            return null;
+        }
+
+        return staffNameCache.computeIfAbsent(staffId, this::queryStaffNameSafely);
+    }
+
+    private String queryStaffNameSafely(String staffId) {
+        try {
+            String staffNameColumn = getResolvedStaffNameColumn();
+
+            if (staffNameColumn == null || staffNameColumn.isBlank()) {
+                return null;
+            }
+
+            String sql = """
+                    SELECT %s
+                    FROM %s.%s
+                    WHERE %s = ?
+                    """.formatted(
+                    staffNameColumn,
+                    STAFF_TABLE_OWNER,
+                    STAFF_TABLE_NAME,
+                    STAFF_ID_COLUMN
+            );
+
+            List<String> result = jdbcTemplate.query(
+                    sql,
+                    (rs, rowNum) -> rs.getString(1),
+                    staffId
+            );
+
+            if (result.isEmpty()) {
+                return null;
+            }
+
+            String name = result.get(0);
+            return (name == null || name.isBlank()) ? null : name;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private String getResolvedStaffNameColumn() {
+        if (resolvedStaffNameColumn != null) {
+            return resolvedStaffNameColumn;
+        }
+
+        synchronized (this) {
+            if (resolvedStaffNameColumn != null) {
+                return resolvedStaffNameColumn;
+            }
+
+            resolvedStaffNameColumn = detectStaffNameColumn();
+            return resolvedStaffNameColumn;
+        }
+    }
+
+    private String detectStaffNameColumn() {
+        try {
+            List<Map<String, Object>> ownerColumns = jdbcTemplate.queryForList("""
+                    SELECT COLUMN_NAME
+                    FROM ALL_TAB_COLUMNS
+                    WHERE OWNER = ?
+                      AND TABLE_NAME = ?
+                    """, STAFF_TABLE_OWNER, STAFF_TABLE_NAME);
+
+            String resolved = pickStaffNameColumn(ownerColumns);
+            if (resolved != null) {
+                return resolved;
+            }
+        } catch (Exception ignored) {
+        }
+
+        try {
+            List<Map<String, Object>> userColumns = jdbcTemplate.queryForList("""
+                    SELECT COLUMN_NAME
+                    FROM USER_TAB_COLUMNS
+                    WHERE TABLE_NAME = ?
+                    """, STAFF_TABLE_NAME);
+
+            return pickStaffNameColumn(userColumns);
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    private String pickStaffNameColumn(List<Map<String, Object>> columns) {
+        if (columns == null || columns.isEmpty()) {
+            return null;
+        }
+
+        List<String> actualColumns = columns.stream()
+                .map(row -> row.get("COLUMN_NAME"))
+                .filter(value -> value != null)
+                .map(value -> String.valueOf(value).toUpperCase())
+                .toList();
+
+        for (String candidate : STAFF_NAME_COLUMN_CANDIDATES) {
+            if (actualColumns.contains(candidate)) {
+                return candidate;
+            }
+        }
+
+        return null;
     }
 }

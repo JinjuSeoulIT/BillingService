@@ -1,8 +1,8 @@
-package com.hospital.billing.controller;
+package com.hospital.billing.payment.controller;
 
-import com.hospital.billing.dto.PaymentResponse;
-import com.hospital.billing.entity.PaymentMethod; // [추가]
-import com.hospital.billing.service.PaymentService;
+import com.hospital.billing.payment.dto.PaymentResponse;
+import com.hospital.billing.payment.entity.PaymentMethod;
+import com.hospital.billing.payment.service.PaymentService;
 import com.hospital.common.response.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -54,7 +54,6 @@ public class PaymentController {
             @Parameter(description = "수납 금액", example = "10000", required = true)
             @RequestParam Integer amount,
 
-            // [추가] 결제 수단
             @Parameter(description = "결제 수단", example = "CARD", required = true)
             @RequestParam PaymentMethod method
     ) {
@@ -78,11 +77,13 @@ public class PaymentController {
     @PatchMapping("/{paymentId}/cancel")
     public ApiResponse<Void> cancelPayment(
             @Parameter(description = "결제 ID", example = "22", required = true)
-            @PathVariable Long paymentId
+            @PathVariable Long paymentId,
+
+            // [수정] 프론트 staffId 누락 호환
+            @Parameter(description = "직원 ID", example = "STAFF001")
+            @RequestParam(required = false) String staffId
     ) {
-
-        paymentService.cancelPayment(paymentId);
-
+        paymentService.cancelPayment(paymentId, staffId);
         return ApiResponse.success(null, "수납 취소 성공");
     }
 
@@ -109,9 +110,13 @@ public class PaymentController {
             @PathVariable Long paymentId,
 
             @Parameter(description = "환불 금액", example = "5000", required = true)
-            @RequestParam Integer amount
+            @RequestParam Integer amount,
+
+            // [수정] 프론트 staffId 누락 호환
+            @Parameter(description = "직원 ID", example = "STAFF001")
+            @RequestParam(required = false) String staffId
     ) {
-        PaymentResponse response = paymentService.refundPayment(paymentId, amount);
+        PaymentResponse response = paymentService.refundPayment(paymentId, amount, staffId);
         return ApiResponse.success(response, "환불 처리 성공");
     }
 

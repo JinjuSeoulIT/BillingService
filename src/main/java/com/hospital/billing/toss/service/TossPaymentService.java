@@ -1,7 +1,7 @@
 package com.hospital.billing.toss.service;
 
-import com.hospital.billing.entity.PaymentMethod;
-import com.hospital.billing.service.PaymentService;
+import com.hospital.billing.payment.entity.PaymentMethod;
+import com.hospital.billing.payment.service.PaymentService;
 import com.hospital.billing.toss.client.TossPaymentClient;
 import com.hospital.billing.toss.dto.TossApproveRequest;
 import com.hospital.billing.toss.dto.TossApproveResponse;
@@ -33,7 +33,8 @@ public class TossPaymentService {
                 paymentAmount,
                 PaymentMethod.CARD,
                 request.getPaymentKey(),
-                request.getOrderId()
+                request.getOrderId(),
+                request.getStaffId()
         );
 
         return response;
@@ -63,6 +64,10 @@ public class TossPaymentService {
 
         if (request.getBillId() == null || request.getBillId() <= 0) {
             throw new IllegalArgumentException("billId는 0보다 커야 합니다.");
+        }
+
+        if (request.getStaffId() == null || request.getStaffId().isBlank()) {
+            throw new IllegalArgumentException("staffId는 필수입니다.");
         }
     }
 
