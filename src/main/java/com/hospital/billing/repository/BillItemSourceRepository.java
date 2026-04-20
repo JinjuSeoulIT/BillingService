@@ -9,4 +9,6 @@ public interface BillItemSourceRepository extends JpaRepository<BillItemSource, 
 
     // 특정 BILL_ITEM 기준 근거 조회
     List<BillItemSource> findByBillItemId(Long billItemId);
+
+    boolean existsBySourceTypeAndSourceId(String sourceType, Long sourceId);
 }

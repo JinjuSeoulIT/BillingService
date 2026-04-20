@@ -7,14 +7,38 @@ spring:
       default:
         contentType: application/json
       function:
-        definition: clinicalCompletedConsumer
+        definition: clinicalCompletedConsumer;medicationRecordOutcomeConsumer;treatmentResultOutcomeConsumer;diagnosticExamOutcomeConsumer;diagnosticTestResultOutcomeConsumer
       bindings:
         clinicalCompletedConsumer-in-0:
           destination: his.clinical.visit-completed
           group: billingClinicalCompletedGroup
+        medicationRecordOutcomeConsumer-in-0:
+          destination: medicationRecordOutcome,output-medicationRecordOutcome
+          group: billingMedicalSupportOutcomeGroup
+        treatmentResultOutcomeConsumer-in-0:
+          destination: treatmentResultOutcome,output-treatmentResultOutcome
+          group: billingMedicalSupportOutcomeGroup
+        diagnosticExamOutcomeConsumer-in-0:
+          destination: diagnosticExamOutcome,output-diagnosticExamOutcome
+          group: billingMedicalSupportOutcomeGroup
+        diagnosticTestResultOutcomeConsumer-in-0:
+          destination: diagnosticTestResultOutcome,output-diagnosticTestResultOutcome
+          group: billingMedicalSupportOutcomeGroup
       kafka:
         bindings:
           clinicalCompletedConsumer-in-0:
+            consumer:
+              startOffset: earliest
+          medicationRecordOutcomeConsumer-in-0:
+            consumer:
+              startOffset: earliest
+          treatmentResultOutcomeConsumer-in-0:
+            consumer:
+              startOffset: earliest
+          diagnosticExamOutcomeConsumer-in-0:
+            consumer:
+              startOffset: earliest
+          diagnosticTestResultOutcomeConsumer-in-0:
             consumer:
               startOffset: earliest
         binder:

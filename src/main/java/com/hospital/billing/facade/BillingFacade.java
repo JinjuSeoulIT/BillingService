@@ -7,6 +7,7 @@ import com.hospital.billing.entity.Bill;
 import com.hospital.billing.entity.BillItem;
 import com.hospital.billing.entity.BillItemSource;
 import com.hospital.billing.entity.BillingRequest;
+import com.hospital.billing.entity.BillingStatus;
 import com.hospital.billing.repository.BillItemRepository;
 import com.hospital.billing.repository.BillItemSourceRepository;
 import com.hospital.billing.repository.BillRepository;
@@ -18,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
@@ -204,6 +206,126 @@ public class BillingFacade {
             );
             throw e;
         }
+    }
+
+    @Transactional
+    public OutcomeAppliedResult handleMedicalSupportOutcome(OutcomeCharge charge) {
+        if (charge == null) {
+            throw new IllegalArgumentException("요청 값이 없습니다.");
+        }
+        if (charge.patientId() == null || charge.patientId() <= 0L) {
+            throw new IllegalArgumentException("patientId는 필수입니다.");
+        }
+        if (isBlank(charge.sourceType())) {
+            throw new IllegalArgumentException("sourceType은 필수입니다.");
+        }
+        if (charge.sourceId() == null || charge.sourceId() <= 0L) {
+            throw new IllegalArgumentException("sourceId는 필수입니다.");
+        }
+
+        boolean alreadyProcessed = billItemSourceRepository.existsBySourceTypeAndSourceId(
+                charge.sourceType(),
+                charge.sourceId()
+        );
+        if (alreadyProcessed) {
+            return new OutcomeAppliedResult(null, true);
+        }
+
+        Bill bill = null;
+        Long visitId = charge.visitId();
+        if (visitId != null && visitId > 0L) {
+            bill = billRepository.findByVisitId(visitId).orElse(null);
+        }
+        if (bill == null) {
+            bill = billRepository.findByPatientIdAndStatus(charge.patientId(), BillingStatus.READY).stream()
+                    .max(Comparator.comparing(Bill::getId))
+                    .orElse(null);
+        }
+
+        if (bill == null) {
+            Timestamp now = Timestamp.valueOf(LocalDateTime.now());
+            bill = new Bill(charge.patientId(), now, 0, now);
+            bill.setBillingNo(noSequenceService.getNextNo("BILLING_NO"));
+            if (visitId != null && visitId > 0L) {
+                bill.setVisitId(visitId);
+            }
+            bill = billRepository.save(bill);
+        } else if (bill.getVisitId() == null && visitId != null && visitId > 0L) {
+            // 기존 READY bill을 재사용하는 경우에도 visitId가 확인되면 연결
+            bill.setVisitId(visitId);
+            bill = billRepository.save(bill);
+        }
+
+        int quantity = charge.quantity() != null && charge.quantity() > 0 ? charge.quantity() : 1;
+        int unitPrice = charge.unitPrice() != null && charge.unitPrice() > 0
+                ? charge.unitPrice()
+                : resolveUnitPriceByItemCategory(charge.itemCategory());
+        int amount = quantity * unitPrice;
+
+        BillItem billItem = BillItem.create(
+                bill,
+                isBlank(charge.itemName()) ? "미정" : charge.itemName().trim(),
+                isBlank(charge.itemCategory()) ? "ETC" : charge.itemCategory().trim(),
+                quantity,
+                unitPrice,
+                amount
+        );
+        BillItem savedBillItem = billItemRepository.save(billItem);
+
+        BillItemSource source = BillItemSource.create(
+                savedBillItem,
+                visitId != null && visitId > 0L ? visitId : bill.getVisitId(),
+                charge.sourceType().trim(),
+                charge.sourceId(),
+                charge.sourceEventId(),
+                Timestamp.valueOf(LocalDateTime.now())
+        );
+        billItemSourceRepository.save(source);
+
+        // bill 총액/잔액 누적 (paid는 그대로)
+        int newTotal = (bill.getTotalAmount() == null ? 0 : bill.getTotalAmount()) + amount;
+        int newRemaining = (bill.getRemainingAmount() == null ? 0 : bill.getRemainingAmount()) + amount;
+        bill.setTotalAmount(newTotal);
+        bill.setRemainingAmount(newRemaining);
+        billRepository.save(bill);
+
+        return new OutcomeAppliedResult(bill.getId(), false);
+    }
+
+    private int resolveUnitPriceByItemCategory(String itemCategory) {
+        String normalized = normalizeUpperText(itemCategory);
+        if (normalized == null) {
+            return 1000;
+        }
+        switch (normalized) {
+            case "MEDICATION":
+                return 10000;
+            case "PROCEDURE":
+                return 15000;
+            case "TEST":
+                return 5000;
+            default:
+                return 1000;
+        }
+    }
+
+    public record OutcomeCharge(
+            Long patientId,
+            Long visitId,
+            String itemName,
+            String itemCategory,
+            Integer quantity,
+            Integer unitPrice,
+            String sourceType,
+            Long sourceId,
+            String sourceEventId
+    ) {
+    }
+
+    public record OutcomeAppliedResult(
+            Long billId,
+            boolean alreadyProcessed
+    ) {
     }
 
     // 요청 이력 저장 이전에 꼭 필요한 최소 검증만 수행
