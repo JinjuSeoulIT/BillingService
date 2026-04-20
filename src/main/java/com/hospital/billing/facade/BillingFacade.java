@@ -35,12 +35,20 @@ public class BillingFacade {
     private static final String ORDER_TYPE_PROCEDURE = "PROCEDURE";
     private static final String ORDER_TYPE_IMAGING = "IMAGING";
     private static final String ORDER_TYPE_LAB = "LAB";
+    private static final String ORDER_TYPE_SPECIMEN = "SPECIMEN";
+    private static final String ORDER_TYPE_PATHOLOGY = "PATHOLOGY";
+    private static final String ORDER_TYPE_ENDOSCOPY = "ENDOSCOPY";
+    private static final String ORDER_TYPE_PHYSIOLOGICAL = "PHYSIOLOGICAL";
 
     private static final Set<String> ALLOWED_ORDER_TYPES = Set.of(
             ORDER_TYPE_PRESCRIPTION,
             ORDER_TYPE_PROCEDURE,
             ORDER_TYPE_IMAGING,
-            ORDER_TYPE_LAB
+            ORDER_TYPE_LAB,
+            ORDER_TYPE_SPECIMEN,
+            ORDER_TYPE_PATHOLOGY,
+            ORDER_TYPE_ENDOSCOPY,
+            ORDER_TYPE_PHYSIOLOGICAL
     );
 
     private final BillRepository billRepository;
@@ -494,6 +502,10 @@ public class BillingFacade {
                 return "MEDICATION";
             case ORDER_TYPE_LAB:
             case ORDER_TYPE_IMAGING:
+            case ORDER_TYPE_SPECIMEN:
+            case ORDER_TYPE_PATHOLOGY:
+            case ORDER_TYPE_ENDOSCOPY:
+            case ORDER_TYPE_PHYSIOLOGICAL:
                 return "TEST";
             case ORDER_TYPE_PROCEDURE:
                 return "PROCEDURE";
@@ -517,6 +529,10 @@ public class BillingFacade {
             case ORDER_TYPE_IMAGING:
                 return 20000;
             case ORDER_TYPE_LAB:
+            case ORDER_TYPE_SPECIMEN:
+            case ORDER_TYPE_PATHOLOGY:
+            case ORDER_TYPE_ENDOSCOPY:
+            case ORDER_TYPE_PHYSIOLOGICAL:
                 return 5000;
             default:
                 throw new IllegalArgumentException("허용되지 않은 orderType입니다. input=" + orderType);
