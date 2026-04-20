@@ -35,6 +35,8 @@ public class BillingFacade {
     private static final String ORDER_TYPE_PROCEDURE = "PROCEDURE";
     private static final String ORDER_TYPE_IMAGING = "IMAGING";
     private static final String ORDER_TYPE_LAB = "LAB";
+    private static final String ORDER_TYPE_MEDICATION = "MEDICATION";
+    private static final String ORDER_TYPE_TREATMENT = "TREATMENT";
     private static final String ORDER_TYPE_SPECIMEN = "SPECIMEN";
     private static final String ORDER_TYPE_PATHOLOGY = "PATHOLOGY";
     private static final String ORDER_TYPE_ENDOSCOPY = "ENDOSCOPY";
@@ -45,6 +47,8 @@ public class BillingFacade {
             ORDER_TYPE_PROCEDURE,
             ORDER_TYPE_IMAGING,
             ORDER_TYPE_LAB,
+            ORDER_TYPE_MEDICATION,
+            ORDER_TYPE_TREATMENT,
             ORDER_TYPE_SPECIMEN,
             ORDER_TYPE_PATHOLOGY,
             ORDER_TYPE_ENDOSCOPY,
@@ -499,6 +503,7 @@ public class BillingFacade {
     private String resolveItemCategory(String orderType) {
         switch (orderType) {
             case ORDER_TYPE_PRESCRIPTION:
+            case ORDER_TYPE_MEDICATION:
                 return "MEDICATION";
             case ORDER_TYPE_LAB:
             case ORDER_TYPE_IMAGING:
@@ -508,6 +513,7 @@ public class BillingFacade {
             case ORDER_TYPE_PHYSIOLOGICAL:
                 return "TEST";
             case ORDER_TYPE_PROCEDURE:
+            case ORDER_TYPE_TREATMENT:
                 return "PROCEDURE";
             default:
                 return "ETC";
@@ -523,8 +529,10 @@ public class BillingFacade {
     private int resolveUnitPriceByOrderType(String orderType) {
         switch (orderType) {
             case ORDER_TYPE_PRESCRIPTION:
+            case ORDER_TYPE_MEDICATION:
                 return 10000;
             case ORDER_TYPE_PROCEDURE:
+            case ORDER_TYPE_TREATMENT:
                 return 15000;
             case ORDER_TYPE_IMAGING:
                 return 20000;
