@@ -2,6 +2,8 @@
   port: 8081
 spring:
   cloud:
+    function:
+      definition: clinicalCompletedConsumer;medicationRecordOutcomeConsumer;treatmentResultOutcomeConsumer;diagnosticExamOutcomeConsumer;diagnosticTestResultOutcomeConsumer
     stream:
       defaultBinder: kafka
       default:
